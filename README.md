@@ -154,7 +154,6 @@ git push -u origin feature/<your-name>-<feature-description>
 ---
 
 ## 🏆 Hackathon Submission Checklist
-
 - [ ] Problem statement requirements fully traced in `docs/REQUIREMENTS.md`.
 - [ ] End-to-end integration verified on `develop`.
 - [ ] Automated tests passing cleanly.
