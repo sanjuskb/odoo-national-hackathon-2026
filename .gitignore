@@ -76,6 +76,10 @@ lerna-debug.log*
 *.dump
 *.rdb
 
+# Allow tracked database migrations, schemas, seeds, and tests
+!database/**/*.sql
+!database/*.sql
+
 # Operating System Files
 .DS_Store
 .DS_Store?
