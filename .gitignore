@@ -109,3 +109,13 @@ coverage/
 .coverage
 .coverage.*
 htmlcov/
+
+# Playwright and Frontend test artifacts
+frontend/test-results/
+frontend/playwright-report/
+test-results/
+playwright-report/
+
+# TypeScript generated build information
+*.tsbuildinfo
+
