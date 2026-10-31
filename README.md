@@ -4,6 +4,8 @@
 
 > **Verified at 31 October audit:** Amarnadh's Phase 0 Express health endpoint and two tests are integrated; GitHub CI passed. Frontend UI, database migrations/RLS, billing persistence, AI/voice and complete end-to-end flows remain **unverified or unimplemented**. Documentation is not evidence of running features.
 
+**Live integration evidence:** [31 October integration status, CI proof and outstanding blockers](docs/team/INTEGRATION_STATUS.md). This is more current than the original preparatory task board.
+
 ## START HERE — ALL FOUR TEAM MEMBERS
 
 1. [Official four-page problem statement transcription](docs/official/problem-statement.md) and [source register](docs/official/source-register.md).
