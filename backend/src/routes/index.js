@@ -7,6 +7,9 @@ const staffRoutes = require('./staff.routes');
 const adminRoutes = require('./admin.routes');
 const productRoutes = require('./product.routes');
 const planRoutes = require('./plan.routes');
+const quotationTemplateRoutes = require('./quotationTemplate.routes');
+const subscriptionRoutes = require('./subscription.routes');
+const portalRoutes = require('./portal.routes');
 
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
@@ -14,6 +17,9 @@ router.use('/staff', staffRoutes);
 router.use('/admin', adminRoutes);
 router.use('/products', productRoutes);
 router.use('/plans', planRoutes);
+router.use('/quotation-templates', quotationTemplateRoutes);
+router.use('/subscriptions', subscriptionRoutes);
+router.use('/portal', portalRoutes);
 
 // Protected admin billing trigger — calls Sanju's deterministic invoice module
 const { createBillingRouter } = require('./billing.cjs');

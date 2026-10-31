@@ -111,9 +111,21 @@ async function update(id, partialData) {
   return mapVariantFromDb(data);
 }
 
+async function findById(id) {
+  try {
+    return await getById(id);
+  } catch (err) {
+    if (err.statusCode === 404 || err.errorCode === 'NOT_FOUND') {
+      return null;
+    }
+    throw err;
+  }
+}
+
 module.exports = {
   listByProduct,
   getById,
+  findById,
   create,
   update,
   mapVariantFromDb,
