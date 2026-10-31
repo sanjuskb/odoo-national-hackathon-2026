@@ -122,3 +122,4 @@ function calculateInvoicePreview({ lines = [], discounts = [], date = new Date()
 module.exports = {
   calculateInvoicePreview,
 };
+

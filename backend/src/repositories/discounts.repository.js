@@ -257,3 +257,4 @@ module.exports = {
   update,
   mapDiscountFromDb,
 };
+
