@@ -19,15 +19,15 @@ Source: 4-page `Subscription_Management_System.pdf`. **P0/P1 are team scheduling
 | FR-010 | Unique subscription number, customer, plan, start/expiry, terms | 3 | P0 | Harsha/Amarnadh | Uniqueness + fields | Not verified |
 | FR-011 | Subscription lines with product, qty, price, tax, amount | 3 | P0 | Amarnadh/Harsha | Line math | Not verified |
 | FR-012 | Draft->Quotation->Confirmed->Active->Closed, visible status | 3 | P0 | Amarnadh/Ravi | Transition tests | Not verified |
-| FR-013 | Due invoices generated from subscriptions with customer/lines/tax/totals | 3 | P0 | Amarnadh/Harsha | Billing job | Not verified |
+| FR-013 | Due invoices generated from subscriptions with customer/lines/tax/totals | 3 | P0 | Sanju (engine) / Amarnadh (API) / Harsha (DB) | Billing job | Not verified |
 | FR-014 | Automated tax from admin tax rules | 3 | P0 | Amarnadh | Tax fixture | Not verified |
 | FR-015 | Confirm/cancel/send/print invoice actions | 3 | P1 | Amarnadh/Ravi | Actions & output | Not verified |
 | FR-016 | Invoice Draft->Confirmed->Paid lifecycle | 3 | P0 | Amarnadh | State test | Not verified |
-| FR-017 | No duplicated or skipped scheduled invoices | 3 | P0 | Amarnadh/Harsha | Retry/concurrency | Not verified |
+| FR-017 | No duplicated or skipped scheduled invoices | 3 | P0 | Sanju (engine) / Harsha (DB) / Amarnadh (API) | Retry/concurrency | Not verified |
 | FR-018 | Admin-only fixed or percentage discount rules | 4 | P0 | Amarnadh/Harsha | Admin rule + 403 | Not verified |
 | FR-019 | Discount min purchase/quantity, date window, max uses | 4 | P0 | Amarnadh/Harsha | Eligibility/boundary | Not verified |
 | FR-020 | Discount scope specific products or entire subscription | 4 | P0 | Amarnadh/Harsha | Product/whole tests | Not verified |
-| FR-021 | Apply valid discount automatically to next invoice; expire/exhaust correctly | 4 | P0 | Amarnadh/Harsha | Next invoice tests | Not verified |
+| FR-021 | Apply valid discount automatically to next invoice; expire/exhaust correctly | 4 | P0 | Sanju (engine) / Amarnadh (API) / Harsha (DB) | Next invoice tests | Not verified |
 | FR-022 | Payments linked to correct invoice with method/amount/date/note | 4 | P0 | Amarnadh/Ravi | Payment link | Not verified |
 | FR-023 | Show paid/outstanding and overdue invoices | 4 | P0 | Ravi/Amarnadh | Balance query | Not verified |
 | FR-024 | Filtered summary active subscriptions, revenue, payments, overdue | 4 | P0 | Ravi/Harsha | Reconciled reports | Not verified |

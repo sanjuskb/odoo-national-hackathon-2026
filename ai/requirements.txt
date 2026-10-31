@@ -1,0 +1,27 @@
+# ==============================================================================
+# AI/ML Module - Core Runtime Dependencies
+# Odoo National Hackathon 2026
+# ==============================================================================
+# Keep baseline lightweight and fast to install.
+# Specific model libraries (e.g., torch, transformers, xgboost) are added
+# ONLY if justified by the official problem statement.
+# ==============================================================================
+
+# Core configuration and validation
+pydantic>=2.0.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+PyYAML>=6.0.0,<7.0.0
+
+# Numerical and tabular foundations (lightweight baseline)
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Modeling baseline (classical ML / heuristics)
+scikit-learn>=1.3.0
+
+# Backend integration & HTTP client
+httpx>=0.25.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+

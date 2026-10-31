@@ -1,0 +1,34 @@
+# ==============================================================================
+# AI/ML Service Configuration Template
+# Odoo National Hackathon 2026
+# ==============================================================================
+# Copy to config.yaml for local overrides or configure via environment variables.
+# ==============================================================================
+
+environment:
+  env: "development"               # development | staging | production
+  host: "127.0.0.1"
+  port: 8000
+  debug: true
+
+logging:
+  level: "INFO"                    # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  structured: true
+  redact_secrets: true
+
+backend_integration:
+  base_url: "http://localhost:3000/api/v1"
+  timeout_seconds: 10.0
+  max_retries: 2
+  retry_backoff_seconds: 0.5
+
+inference:
+  timeout_seconds: 5.0
+  max_batch_size: 32
+  enable_fallback: true
+  confidence_threshold: 0.50
+
+models:
+  active_model: "provisional_heuristic_model"
+  registry_dir: "./models"
+
