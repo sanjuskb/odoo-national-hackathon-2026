@@ -1,9 +1,12 @@
 'use strict';
 const {assertDate}=require('../../../billing/src/calculator.cjs');
-const {getSupabaseAdmin}=require('../lib/supabase');
+function getDefaultSupabaseAdmin() {
+  return require('../lib/supabase').getSupabaseAdmin();
+}
 
 // Reuses Amarnadh's server-only Supabase Admin SDK; never instantiates browser secrets.
-function createSupabaseBillingRepository({client=getSupabaseAdmin(),env=process.env}={}) {
+function createSupabaseBillingRepository({client,env=process.env}={}) {
+  const activeClient = client || getDefaultSupabaseAdmin();
   if(!/^\d{1,3}$/.test(env.BILLING_DUE_DAYS||'')||Number(env.BILLING_DUE_DAYS)>365)
     throw Error('BILLING_DUE_DAYS must be explicitly approved and configured 0..365');
   const dueDays=Number(env.BILLING_DUE_DAYS);
@@ -22,7 +25,7 @@ function createSupabaseBillingRepository({client=getSupabaseAdmin(),env=process.
   async function listDueSubscriptionIds({asOf,limit}){
     assertDate(asOf,'asOf');
     if(!Number.isSafeInteger(limit)||limit<1||limit>1000)throw Error('Invalid batch limit');
-    const data=requireData(await client.from('subscriptions').select('id')
+    const data=requireData(await activeClient.from('subscriptions').select('id')
       .eq('status','active').lte('next_billing_date',asOf)
       .order('next_billing_date',{ascending:true}).limit(limit),'due list');
     if(!Array.isArray(data))throw Error('Invalid due-list response');
@@ -30,24 +33,24 @@ function createSupabaseBillingRepository({client=getSupabaseAdmin(),env=process.
   }
   async function getBillingSnapshot(id){
     safeId(id);
-    const s=requireData(await client.from('subscriptions')
+    const s=requireData(await activeClient.from('subscriptions')
       .select('id,status,customer_id,plan_id,start_date,next_billing_date,billing_anchor_date')
       .eq('id',id).maybeSingle(),'subscription');
     if(!s)return null;
-    const p=requireData(await client.from('plans').select('id,frequency,currency')
+    const p=requireData(await activeClient.from('plans').select('id,frequency,currency')
       .eq('id',safeId(s.plan_id)).single(),'plan');
-    const rows=requireData(await client.from('subscription_lines')
+    const rows=requireData(await activeClient.from('subscription_lines')
       .select('product_id,description,quantity,unit_price,variant_adjustment,tax_rate_percent')
       .eq('subscription_id',id),'subscription lines');
     if(!p||!Array.isArray(rows)||!rows.length)throw Error('Incomplete subscription/plan snapshot');
-    const rules=requireData(await client.from('discount_rules')
+    const rules=requireData(await activeClient.from('discount_rules')
       .select('id,kind,value,scope,min_amount,min_quantity,valid_from,valid_until,max_uses,used_count')
       .limit(1000),'discount rules');
     if(!Array.isArray(rules)||rules.length>=1000)throw Error('Discount-rule pagination required; refusing partial rules');
     const scoped=rules.filter(r=>r.scope==='product');
     let maps=[];
     if(scoped.length){
-      maps=requireData(await client.from('discount_product_mappings')
+      maps=requireData(await activeClient.from('discount_product_mappings')
         .select('discount_rule_id,product_id').in('discount_rule_id',scoped.map(r=>safeId(r.id))),'product discount scope');
     }
     if(!Array.isArray(maps))throw Error('Invalid product discount scopes');
@@ -72,7 +75,7 @@ function createSupabaseBillingRepository({client=getSupabaseAdmin(),env=process.
   async function persistInvoiceAtomically({subscriptionId,expectedNextBillingDate,nextBillingDate,invoice}){
     safeId(subscriptionId);assertDate(expectedNextBillingDate,'expectedNextBillingDate');assertDate(nextBillingDate,'nextBillingDate');
     const date=new Date(expectedNextBillingDate+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+dueDays);
-    const rows=requireData(await client.rpc('persist_due_billing_invoice',{
+    const rows=requireData(await activeClient.rpc('persist_due_billing_invoice',{
       p_subscription_id:subscriptionId,p_expected_date:expectedNextBillingDate,p_next_date:nextBillingDate,
       p_due_date:date.toISOString().slice(0,10),p_subtotal:invoice.subtotal,
       p_tax_total:invoice.taxTotal,p_discount_total:invoice.discountTotal,

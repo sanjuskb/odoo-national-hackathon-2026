@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sanjuskb/odoo-national-hackathon-2026/ai/contracts/error.schema.json",
+  "title": "AIErrorEnvelope",
+  "description": "Standardized schema for error envelopes returned when input validation or inference fails.",
+  "type": "object",
+  "required": ["success", "model_version", "result", "metadata", "error"],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "const": false
+    },
+    "model_version": {
+      "type": "string"
+    },
+    "result": {
+      "type": "null"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["latency_ms", "fallback_used", "timestamp"],
+      "properties": {
+        "latency_ms": {
+          "type": "number"
+        },
+        "fallback_used": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "VALIDATION_ERROR",
+            "MODEL_NOT_FOUND",
+            "INFERENCE_TIMEOUT",
+            "PREPROCESSING_ERROR",
+            "INTERNAL_AI_ERROR"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
+
