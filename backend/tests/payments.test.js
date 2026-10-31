@@ -116,6 +116,30 @@ describe('Phase 5 Payments Suite (Payment Ledger & Settlement)', () => {
       expect(res.body.message).toContain('exceeds remaining balance due');
     });
 
+    it('handles simultaneous concurrent payments: only one succeeds when together they exceed balance', async () => {
+      // invId balance is 1000.00. Fire two concurrent requests for 600.00 each
+      const [res1, res2] = await Promise.all([
+        request(app)
+          .post(`/api/v1/invoices/${invId}/payments`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ amount: '600.00', method: 'bank_transfer' }),
+        request(app)
+          .post(`/api/v1/invoices/${invId}/payments`)
+          .set('Authorization', `Bearer ${staffToken}`)
+          .send({ amount: '600.00', method: 'upi' }),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([201, 400]);
+
+      // Confirm remaining balance is exactly 400.00 and never overpaid
+      const getRes = await request(app)
+        .get(`/api/v1/invoices/${invId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(getRes.body.data.invoice.financials.paid_amount).toBe('600.00');
+      expect(getRes.body.data.invoice.financials.balance_due).toBe('400.00');
+    });
+
     it('rejects zero and negative payment amounts (400)', async () => {
       const zeroRes = await request(app)
         .post(`/api/v1/invoices/${invId}/payments`)

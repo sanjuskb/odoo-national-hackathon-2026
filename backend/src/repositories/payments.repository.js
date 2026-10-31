@@ -94,6 +94,31 @@ async function list(
   };
 }
 
+// Per-invoice in-memory lock for concurrent payment serialization
+// TEMPORARY until Harsha provides the atomic record_payment_atomic database RPC
+const invoiceLocks = new Map();
+
+async function withInvoiceLock(invoiceId, fn) {
+  while (invoiceLocks.has(invoiceId)) {
+    try {
+      await invoiceLocks.get(invoiceId);
+    } catch {
+      // Ignore errors in prior execution; proceed when unlocked
+    }
+  }
+  let resolve;
+  const promise = new Promise((res) => {
+    resolve = res;
+  });
+  invoiceLocks.set(invoiceId, promise);
+  try {
+    return await fn();
+  } finally {
+    invoiceLocks.delete(invoiceId);
+    resolve();
+  }
+}
+
 /**
  * Records a payment against an invoice with concurrent overpayment guard.
  *
@@ -116,91 +141,93 @@ async function recordPayment(
     throw new AppError('Invoice ID is required', 400);
   }
 
-  // 1. Fetch invoice
-  const { data: invoiceRow, error: invError } = await client
-    .from('invoices')
-    .select('*')
-    .eq('id', invoice_id)
-    .maybeSingle();
-
-  if (invError || !invoiceRow) {
-    throw new AppError('Invoice not found', 404);
-  }
-
-  if (invoiceRow.status === 'draft') {
-    throw new AppError('Cannot record payment on a draft invoice', 400, 'INVOICE_NOT_CONFIRMED');
-  }
-  if (invoiceRow.status === 'cancelled') {
-    throw new AppError('Cannot record payment on a cancelled invoice', 400, 'INVOICE_CANCELLED');
-  }
-  if (invoiceRow.status === 'paid') {
-    throw new AppError('Invoice is already fully paid', 400, 'INVOICE_ALREADY_PAID');
-  }
-  if (invoiceRow.status !== 'confirmed') {
-    throw new AppError(`Cannot record payment on invoice in '${invoiceRow.status}' status`, 400);
-  }
-
-  // 2. Fetch existing payments
-  const existingPayments = await listByInvoiceId(invoice_id, client);
-
-  // 3. Validate payment amount & overpayment
-  const { amountFormatted, willPayInFull } = validatePaymentAmount(
-    invoiceRow,
-    existingPayments,
-    amount
-  );
-
-  const paymentDate = payment_date || new Date().toISOString().slice(0, 10);
-
-  // 4. Insert payment
-  const paymentPayload = {
-    invoice_id,
-    amount: amountFormatted,
-    payment_date: paymentDate,
-    method,
-    reference: reference || null,
-    note: note || null,
-  };
-
-  const { data: newPayment, error: pmtError } = await client
-    .from('payments')
-    .insert([paymentPayload])
-    .select()
-    .single();
-
-  if (pmtError) {
-    throw new AppError('Failed to record payment', 500);
-  }
-
-  // 5. If fully paid, update invoice status to 'paid'
-  let updatedInvoice = invoiceRow;
-  if (willPayInFull) {
-    const paidAt = new Date().toISOString();
-    const { data: invUpdated, error: updateError } = await client
+  return withInvoiceLock(invoice_id, async () => {
+    // 1. Fetch invoice
+    const { data: invoiceRow, error: invError } = await client
       .from('invoices')
-      .update({
-        status: 'paid',
-        paid_at: paidAt,
-        updated_at: new Date().toISOString(),
-      })
+      .select('*')
       .eq('id', invoice_id)
+      .maybeSingle();
+
+    if (invError || !invoiceRow) {
+      throw new AppError('Invoice not found', 404);
+    }
+
+    if (invoiceRow.status === 'draft') {
+      throw new AppError('Cannot record payment on a draft invoice', 400, 'INVOICE_NOT_CONFIRMED');
+    }
+    if (invoiceRow.status === 'cancelled') {
+      throw new AppError('Cannot record payment on a cancelled invoice', 400, 'INVOICE_CANCELLED');
+    }
+    if (invoiceRow.status === 'paid') {
+      throw new AppError('Invoice is already fully paid', 400, 'INVOICE_ALREADY_PAID');
+    }
+    if (invoiceRow.status !== 'confirmed') {
+      throw new AppError(`Cannot record payment on invoice in '${invoiceRow.status}' status`, 400);
+    }
+
+    // 2. Fetch existing payments
+    const existingPayments = await listByInvoiceId(invoice_id, client);
+
+    // 3. Validate payment amount & overpayment
+    const { amountFormatted, willPayInFull } = validatePaymentAmount(
+      invoiceRow,
+      existingPayments,
+      amount
+    );
+
+    const paymentDate = payment_date || new Date().toISOString().slice(0, 10);
+
+    // 4. Insert payment
+    const paymentPayload = {
+      invoice_id,
+      amount: amountFormatted,
+      payment_date: paymentDate,
+      method,
+      reference: reference || null,
+      note: note || null,
+    };
+
+    const { data: newPayment, error: pmtError } = await client
+      .from('payments')
+      .insert([paymentPayload])
       .select()
       .single();
 
-    if (!updateError && invUpdated) {
-      updatedInvoice = invUpdated;
+    if (pmtError) {
+      throw new AppError('Failed to record payment', 500);
     }
-  }
 
-  const updatedPayments = [...existingPayments, mapPaymentFromDb(newPayment)];
-  const financials = computeInvoiceFinancials(updatedInvoice, updatedPayments);
+    // 5. If fully paid, update invoice status to 'paid'
+    let updatedInvoice = invoiceRow;
+    if (willPayInFull) {
+      const paidAt = new Date().toISOString();
+      const { data: invUpdated, error: updateError } = await client
+        .from('invoices')
+        .update({
+          status: 'paid',
+          paid_at: paidAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice_id)
+        .select()
+        .single();
 
-  return {
-    payment: mapPaymentFromDb(newPayment),
-    invoice: updatedInvoice,
-    willPayInFull,
-    financials,
-  };
+      if (!updateError && invUpdated) {
+        updatedInvoice = invUpdated;
+      }
+    }
+
+    const updatedPayments = [...existingPayments, mapPaymentFromDb(newPayment)];
+    const financials = computeInvoiceFinancials(updatedInvoice, updatedPayments);
+
+    return {
+      payment: mapPaymentFromDb(newPayment),
+      invoice: updatedInvoice,
+      willPayInFull,
+      financials,
+    };
+  });
 }
 
 module.exports = {

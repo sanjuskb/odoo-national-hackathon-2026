@@ -342,6 +342,31 @@ describe('Phase 5 Invoices Suite (API Endpoints & Lifecycle)', () => {
       );
     });
 
+    it('does not set sent_at and returns error when email provider returns error', async () => {
+      process.env.RESEND_API_KEY = 're_test_key_12345';
+      process.env.MAIL_FROM = 'billing@brightloop.io';
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'Rate limit exceeded' }),
+      });
+      global.fetch = mockFetch;
+
+      const res = await request(app)
+        .post(`/api/v1/invoices/${invId}/send`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ recipient_email: 'cust1@brightloop.local' });
+
+      expect(res.status).toBe(502);
+      expect(res.body.success).toBe(false);
+
+      // Verify that invoice row in DB still has sent_at null
+      const checkRes = await request(app)
+        .get(`/api/v1/invoices/${invId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(checkRes.body.data.invoice.sent_at).toBeNull();
+    });
+
     it('rejects sending draft invoice (400)', async () => {
       const draftId = '11111111-1111-4111-8111-111111111112';
       mock.seedInvoice({
