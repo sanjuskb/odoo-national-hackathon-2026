@@ -79,6 +79,15 @@ begin
     raise exception 'Invoice snapshot totals do not reconcile';
   end if;
 
+  -- Reject duplicate discount IDs and mismatch against invoice's actual discount amount.
+  if (select count(*) from jsonb_array_elements(p_discounts))
+     <> (select count(distinct value->>'id') from jsonb_array_elements(p_discounts) as r(value)) then
+    raise exception 'Duplicate discount redemption IDs';
+  end if;
+  if coalesce((select sum((value->>'amount')::numeric)
+     from jsonb_array_elements(p_discounts) as r(value)),0) <> p_discount_total then
+    raise exception 'Discount redemptions do not reconcile to invoice total';
+  end if;
   -- Lock discount rows in deterministic UUID order to prevent concurrent cap races.
   for v_discount in
     select value from jsonb_array_elements(p_discounts) as item(value)
