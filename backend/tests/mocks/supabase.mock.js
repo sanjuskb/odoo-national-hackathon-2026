@@ -12,6 +12,9 @@ function createSupabaseMock() {
   const taxRulesTable = new Map();
   const discountRulesTable = new Map();
   const discountProductMappingsTable = new Map();
+  const invoicesTable = new Map();
+  const invoiceLinesTable = new Map();
+  const paymentsTable = new Map();
 
   function seedUser({ id, email, password = 'Password123!', full_name = 'Test User', role = 'customer', user_metadata = {} }) {
     const user = {
@@ -190,6 +193,69 @@ function createSupabaseMock() {
     return mapping;
   }
 
+  function seedInvoice(inv) {
+    const id = inv.id || `inv-${Math.random().toString(36).substring(2, 9)}`;
+    const invoice = {
+      id,
+      subscription_id: inv.subscription_id || null,
+      customer_id: inv.customer_id,
+      billing_period_start: inv.billing_period_start || null,
+      billing_period_end: inv.billing_period_end || null,
+      invoice_number: inv.invoice_number || `INV-${Date.now().toString().slice(-6)}`,
+      subtotal: inv.subtotal || '0.00',
+      discount_total: inv.discount_total || '0.00',
+      tax_total: inv.tax_total || '0.00',
+      total: inv.total || '0.00',
+      status: inv.status || 'draft',
+      due_date: inv.due_date || null,
+      paid_at: inv.paid_at || null,
+      sent_at: inv.sent_at || null,
+      created_at: inv.created_at || new Date().toISOString(),
+      updated_at: inv.updated_at || new Date().toISOString(),
+    };
+    invoicesTable.set(id, invoice);
+    return invoice;
+  }
+
+  function seedInvoiceLine(l) {
+    const id = l.id || `invline-${Math.random().toString(36).substring(2, 9)}`;
+    const line = {
+      id,
+      invoice_id: l.invoice_id,
+      product_id: l.product_id,
+      description: l.description || 'Invoice Line',
+      quantity: l.quantity || 1,
+      unit_price: l.unit_price || '0.00',
+      variant_adjustment: l.variant_adjustment || '0.00',
+      tax_rate_percent: l.tax_rate_percent || '0.00',
+      base_amount: l.base_amount || '0.00',
+      discount_amount: l.discount_amount || '0.00',
+      tax_amount: l.tax_amount || '0.00',
+      line_total: l.line_total || '0.00',
+      created_at: l.created_at || new Date().toISOString(),
+      updated_at: l.updated_at || new Date().toISOString(),
+    };
+    invoiceLinesTable.set(id, line);
+    return line;
+  }
+
+  function seedPayment(p) {
+    const id = p.id || `pmt-${Math.random().toString(36).substring(2, 9)}`;
+    const payment = {
+      id,
+      invoice_id: p.invoice_id,
+      amount: p.amount || '0.00',
+      payment_date: p.payment_date || new Date().toISOString().slice(0, 10),
+      method: p.method || 'cash',
+      reference: p.reference || null,
+      note: p.note || null,
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: p.updated_at || new Date().toISOString(),
+    };
+    paymentsTable.set(id, payment);
+    return payment;
+  }
+
   function reset() {
     users.clear();
     tokens.clear();
@@ -203,6 +269,9 @@ function createSupabaseMock() {
     taxRulesTable.clear();
     discountRulesTable.clear();
     discountProductMappingsTable.clear();
+    invoicesTable.clear();
+    invoiceLinesTable.clear();
+    paymentsTable.clear();
   }
 
   function getTableMap(name) {
@@ -216,14 +285,16 @@ function createSupabaseMock() {
     if (name === 'tax_rules' || name === 'taxes') return taxRulesTable;
     if (name === 'discount_rules' || name === 'discounts') return discountRulesTable;
     if (name === 'discount_product_mappings') return discountProductMappingsTable;
+    if (name === 'invoices') return invoicesTable;
+    if (name === 'invoice_lines') return invoiceLinesTable;
+    if (name === 'payments') return paymentsTable;
     return new Map();
   }
 
   function createQueryBuilder(tableName) {
     const table = getTableMap(tableName);
     let filters = [];
-    let sortCol = null;
-    let sortAsc = true;
+    let orders = [];
     let rangeFrom = 0;
     let rangeTo = Infinity;
     let selectColumns = '*';
@@ -305,10 +376,12 @@ function createSupabaseMock() {
         return { data: results, error: null, count: results.length };
       }
 
-      if (sortCol) {
+      if (orders.length > 0) {
         results.sort((a, b) => {
-          if (a[sortCol] < b[sortCol]) return sortAsc ? -1 : 1;
-          if (a[sortCol] > b[sortCol]) return sortAsc ? 1 : -1;
+          for (const { col, ascending } of orders) {
+            if (a[col] < b[col]) return ascending ? -1 : 1;
+            if (a[col] > b[col]) return ascending ? 1 : -1;
+          }
           return 0;
         });
       }
@@ -405,8 +478,7 @@ function createSupabaseMock() {
         return builder;
       },
       order: (col, { ascending = true } = {}) => {
-        sortCol = col;
-        sortAsc = ascending;
+        orders.push({ col, ascending });
         return builder;
       },
       range: (from, to) => {
@@ -544,6 +616,9 @@ function createSupabaseMock() {
     seedTaxRule,
     seedDiscountRule,
     seedDiscountProductMapping,
+    seedInvoice,
+    seedInvoiceLine,
+    seedPayment,
     reset,
     users,
     tokens,
@@ -557,6 +632,9 @@ function createSupabaseMock() {
     taxRulesTable,
     discountRulesTable,
     discountProductMappingsTable,
+    invoicesTable,
+    invoiceLinesTable,
+    paymentsTable,
   };
 }
 

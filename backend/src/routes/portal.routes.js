@@ -3,8 +3,11 @@
 const express = require('express');
 const router = express.Router();
 const subscriptionController = require('../controllers/subscription.controller');
+const invoiceController = require('../controllers/invoice.controller');
 const authenticate = require('../middleware/authenticate');
 const requireRole = require('../middleware/requireRole');
+const validate = require('../middleware/validate');
+const { listInvoicesQuerySchema } = require('../validators/invoice.validators');
 const AppError = require('../utils/AppError');
 
 // Customer self-service portal: thin wrappers around subscription controller
@@ -13,6 +16,14 @@ router.get(
   authenticate,
   requireRole('customer'),
   subscriptionController.listSubscriptions
+);
+
+router.get(
+  '/invoices',
+  authenticate,
+  requireRole('customer'),
+  validate(listInvoicesQuerySchema, 'query'),
+  invoiceController.listInvoices
 );
 
 router.post(
