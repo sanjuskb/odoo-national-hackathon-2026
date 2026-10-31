@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0] - 2026-10-31
+
+### Added - Module 2: Authentication Security, Account Status & Role Enforcement
+- **Authentication & Security Migration (`database/migrations/20261031_004_authentication_security.sql`):**
+  - **Account Status Lifecycle:** Added `account_status` column (`active`, `suspended`) to `public.profiles` with check constraint and index `profiles_status_idx`. Default set to `'active'`.
+  - **Hardened Privilege Escalation Guard:** Enhanced `prevent_role_escalation()` trigger on `public.profiles` to strictly forbid customer modification of `account_status` (preventing suspension self-reactivation) alongside role and ID immutability checks.
+  - **Active Account Helper:** Provisioned `is_active_account()` security definer helper function locked to `search_path = public`, revoked from public, and granted to authenticated users.
+  - **Idempotent Profile Provisioning:** Updated `create_customer_profile()` with `ON CONFLICT (id) DO UPDATE` to safely handle retried auth events, preserving server-assigned staff/admin roles upon creation.
+  - **Metadata & Email Synchronization:** Extended `sync_brightloop_profile_role()` to support status synchronization, and installed `sync_brightloop_profile_email()` trigger `brightloop_auth_email_changed` on `auth.users(email)`.
+  - **Suspended Account Access Denials:** Hardened customer RLS write policies across `profiles` (`profiles_update_self`), `subscriptions` (`subscriptions_update_customer`), and `ai_assistance_events` (`ai_events_insert_customer`) to reject requests from suspended accounts.
+  - **Auth User Backfill:** Automated idempotent profile synchronization for all existing Supabase Auth users.
+- **Canonical Schema & ERD Updates:**
+  - Synchronized `database/schema/01_brightloop_schema.sql` and `database/diagrams/schema_erd.mmd` with `account_status` and security definer functions.
+- **Automated Validation Suite (`database/tests/validate_auth_security.js`):**
+  - Added 19 static and contractual test assertions validating schema, functions, triggers, and RLS policies.
+
 ## [1.0.0] - 2026-10-31
 
 ### Added - Module 1: Database Foundation Hardening, Auditing, Indexes & RLS
