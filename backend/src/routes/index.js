@@ -10,6 +10,9 @@ const planRoutes = require('./plan.routes');
 const quotationTemplateRoutes = require('./quotationTemplate.routes');
 const subscriptionRoutes = require('./subscription.routes');
 const portalRoutes = require('./portal.routes');
+const taxRoutes = require('./tax.routes');
+const discountRoutes = require('./discount.routes');
+const billingPreviewRoutes = require('./billingPreview.routes');
 
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
@@ -20,6 +23,9 @@ router.use('/plans', planRoutes);
 router.use('/quotation-templates', quotationTemplateRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/portal', portalRoutes);
+router.use('/taxes', taxRoutes);
+router.use('/discounts', discountRoutes);
+router.use('/billing', billingPreviewRoutes);
 
 // Protected admin billing trigger — calls Sanju's deterministic invoice module
 const { createBillingRouter } = require('./billing.cjs');
