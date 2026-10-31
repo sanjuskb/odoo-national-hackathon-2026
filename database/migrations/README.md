@@ -29,6 +29,7 @@ All database schema evolutions must be performed via sequential, reproducible SQ
 | `20261031_001_brightloop_core.sql` | Core schema: 14 domain tables, Auth customer profile trigger, Auth app_metadata role sync trigger, basic indexes, read RLS policies. | Sanju / Team | None | Foundation Core Baseline |
 | `20261031_002_atomic_billing_rpc.sql` | Transactional billing RPC `persist_due_billing_invoice` for atomic invoice creation, line snapshots, discount redemptions, and cursor advance. | Sanju / Team | `20261031_001` | Atomic Billing Transaction |
 | `20261031_003_foundation_enhancements.sql` | Module 1 Foundation Hardening: automated `set_updated_at()` trigger, `prevent_role_escalation()` guard, missing foreign key indexes, profile contact attributes, catalogue active flags/SKU, staff RLS write policies, and AI assistance events table. | Harsha | `20261031_001`, `20261031_002` | Module 1 — Foundation Hardening |
+| `20261031_004_authentication_security.sql` | Module 2 Authentication & Security: adds `account_status` column and index on `public.profiles`, hardens `prevent_role_escalation` to block status tampering, enhances `create_customer_profile` with idempotency, adds `sync_brightloop_profile_email`, adds `is_active_account()` helper, updates customer RLS write policies to block suspended users, and backfills Auth users. | Harsha | `20261031_001`, `20261031_002`, `20261031_003` | Module 2 — Authentication & Security |
 
 ---
 

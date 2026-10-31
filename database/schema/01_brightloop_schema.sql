@@ -39,11 +39,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT NOT NULL UNIQUE,
     full_name TEXT,
     role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('admin', 'staff', 'customer')),
+    account_status TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'suspended')),
     phone TEXT,
     company_name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS profiles_status_idx ON public.profiles(account_status);
 
 -- Trigger: auto-create customer profile on auth.users sign-up
 CREATE OR REPLACE FUNCTION public.create_customer_profile()
@@ -51,16 +54,39 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS 
+DECLARE
+    v_initial_role TEXT;
 BEGIN
     IF NEW.email IS NULL THEN
         RAISE EXCEPTION 'Brightloop requires email registration';
     END IF;
-    INSERT INTO public.profiles (id, email, full_name, role)
-    VALUES (NEW.id, lower(NEW.email), NEW.raw_user_meta_data->>'full_name', 'customer');
+
+    v_initial_role := NEW.raw_app_meta_data->>'role';
+    IF v_initial_role NOT IN ('admin', 'staff', 'customer') OR v_initial_role IS NULL THEN
+        v_initial_role := 'customer';
+    END IF;
+
+    INSERT INTO public.profiles (id, email, full_name, role, account_status)
+    VALUES (
+        NEW.id,
+        lower(NEW.email),
+        NEW.raw_user_meta_data->>'full_name',
+        v_initial_role,
+        'active'
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = coalesce(EXCLUDED.full_name, public.profiles.full_name),
+        role = CASE
+            WHEN public.profiles.role = 'customer' AND EXCLUDED.role <> 'customer' THEN EXCLUDED.role
+            ELSE public.profiles.role
+        END,
+        updated_at = now();
+
     RETURN NEW;
 END;
-$$;
+;
 
 DROP TRIGGER IF EXISTS brightloop_auth_profile_created ON auth.users;
 CREATE TRIGGER brightloop_auth_profile_created
@@ -74,24 +100,61 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS 
 DECLARE
     v_role TEXT;
+    v_status TEXT;
 BEGIN
     v_role := NEW.raw_app_meta_data->>'role';
     IF v_role NOT IN ('admin', 'staff', 'customer') OR v_role IS NULL THEN
         v_role := 'customer';
     END IF;
-    UPDATE public.profiles SET role = v_role WHERE id = NEW.id;
+
+    v_status := NEW.raw_app_meta_data->>'account_status';
+    IF v_status NOT IN ('active', 'suspended') OR v_status IS NULL THEN
+        v_status := NULL;
+    END IF;
+
+    UPDATE public.profiles
+    SET role = v_role,
+        account_status = coalesce(v_status, account_status),
+        email = lower(NEW.email),
+        updated_at = now()
+    WHERE id = NEW.id;
+
     RETURN NEW;
 END;
-$$;
+;
 
 DROP TRIGGER IF EXISTS brightloop_auth_role_metadata_changed ON auth.users;
 CREATE TRIGGER brightloop_auth_role_metadata_changed
     AFTER UPDATE OF raw_app_meta_data ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION public.sync_brightloop_profile_role();
+
+-- Trigger: synchronize email changes on auth.users into profiles
+CREATE OR REPLACE FUNCTION public.sync_brightloop_profile_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS 
+BEGIN
+    IF NEW.email IS DISTINCT FROM OLD.email THEN
+        UPDATE public.profiles
+        SET email = lower(NEW.email),
+            updated_at = now()
+        WHERE id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+;
+
+DROP TRIGGER IF EXISTS brightloop_auth_email_changed ON auth.users;
+CREATE TRIGGER brightloop_auth_email_changed
+    AFTER UPDATE OF email ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.sync_brightloop_profile_email();
 
 -- Staff verification function (security definer, avoids RLS recursion)
 CREATE OR REPLACE FUNCTION public.is_brightloop_staff()
@@ -100,24 +163,42 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS 
     SELECT EXISTS (
         SELECT 1 FROM public.profiles p
         WHERE p.id = auth.uid() AND p.role IN ('admin', 'staff')
     );
-$$;
+;
 
 REVOKE ALL ON FUNCTION public.is_brightloop_staff() FROM public;
 GRANT EXECUTE ON FUNCTION public.is_brightloop_staff() TO authenticated;
 
--- Trigger: prevent privilege escalation (customers cannot modify role or id)
+-- Active account helper function (security definer, prevents suspended user access)
+CREATE OR REPLACE FUNCTION public.is_active_account()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS 
+    SELECT EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid() AND p.account_status = 'active'
+    );
+;
+
+REVOKE ALL ON FUNCTION public.is_active_account() FROM public;
+GRANT EXECUTE ON FUNCTION public.is_active_account() TO authenticated;
+
+-- Trigger: prevent privilege escalation and account status tampering
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS 
 BEGIN
+    -- 1. Prevent customer role escalation
     IF coalesce(auth.role(), '') <> 'service_role' AND OLD.role IS DISTINCT FROM NEW.role THEN
         IF NOT public.is_brightloop_staff() THEN
             RAISE EXCEPTION 'Permission denied: customers cannot modify user roles (escalation attempt from % to %)',
@@ -126,6 +207,15 @@ BEGIN
         END IF;
     END IF;
 
+    -- 2. Prevent customer account_status modification (suspension self-reactivation)
+    IF coalesce(auth.role(), '') <> 'service_role' AND OLD.account_status IS DISTINCT FROM NEW.account_status THEN
+        IF NOT public.is_brightloop_staff() THEN
+            RAISE EXCEPTION 'Permission denied: only staff or service_role can modify account_status'
+                USING errcode = '42501';
+        END IF;
+    END IF;
+
+    -- 3. Prevent primary key mutation
     IF OLD.id IS DISTINCT FROM NEW.id THEN
         RAISE EXCEPTION 'Immutable identifier: profile id cannot be modified'
             USING errcode = '42501';
@@ -133,7 +223,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$;
+;
 
 DROP TRIGGER IF EXISTS trg_profiles_prevent_role_escalation ON public.profiles;
 CREATE TRIGGER trg_profiles_prevent_role_escalation
@@ -531,7 +621,7 @@ CREATE POLICY ai_events_read ON public.ai_assistance_events FOR SELECT TO authen
 
 -- Write & Update policies
 CREATE POLICY profiles_update_self ON public.profiles FOR UPDATE TO authenticated
-    USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+    USING (id = auth.uid() AND account_status = 'active') WITH CHECK (id = auth.uid() AND account_status = 'active');
 
 CREATE POLICY profiles_update_staff ON public.profiles FOR UPDATE TO authenticated
     USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
@@ -552,7 +642,7 @@ CREATE POLICY templates_write_staff ON public.quotation_templates FOR ALL TO aut
 CREATE POLICY template_lines_write_staff ON public.quotation_template_lines FOR ALL TO authenticated USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
 
 CREATE POLICY subscriptions_update_staff ON public.subscriptions FOR UPDATE TO authenticated USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
-CREATE POLICY subscriptions_update_customer ON public.subscriptions FOR UPDATE TO authenticated USING (customer_id = auth.uid()) WITH CHECK (customer_id = auth.uid());
+CREATE POLICY subscriptions_update_customer ON public.subscriptions FOR UPDATE TO authenticated USING (customer_id = auth.uid() AND public.is_active_account()) WITH CHECK (customer_id = auth.uid() AND public.is_active_account());
 
 CREATE POLICY subscription_lines_manage_staff ON public.subscription_lines FOR ALL TO authenticated USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
 
@@ -562,7 +652,7 @@ CREATE POLICY discount_product_mappings_manage_staff ON public.discount_product_
 
 CREATE POLICY invoices_manage_staff ON public.invoices FOR UPDATE TO authenticated USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
 
-CREATE POLICY ai_events_insert_customer ON public.ai_assistance_events FOR INSERT TO authenticated WITH CHECK (customer_id = auth.uid());
+CREATE POLICY ai_events_insert_customer ON public.ai_assistance_events FOR INSERT TO authenticated WITH CHECK (customer_id = auth.uid() AND public.is_active_account());
 CREATE POLICY ai_events_manage_staff ON public.ai_assistance_events FOR ALL TO authenticated USING (public.is_brightloop_staff()) WITH CHECK (public.is_brightloop_staff());
 
 
