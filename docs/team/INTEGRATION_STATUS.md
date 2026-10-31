@@ -4,16 +4,16 @@
 ## Verified integration on develop
 | Workstream | Verified source | Actual evidence | Limit |
 |---|---|---|---|
-| Backend Phase 0 | [PR #12](../../pull/12) | Express health/404 endpoints; CI passed | No database CRUD |
-| Billing calculations | [PR #14](../../pull/14) | **16 passing** Node unit tests: exact minor-unit money, variants, tax, discounts, month-end, catch-up simulation | Fake adapter tests are not PostgreSQL concurrency proof |
-| Backend Phase 1 | [PR #19](../../pull/19) | **29 passing** Vitest auth/health tests; server-verified Auth app_metadata roles | Supabase responses mocked; live sign-in/reset not yet tested |
-| Protected billing route | [PR #16](../../pull/16) | **2 passing** billing-route negative tests; route reuses actual Express RBAC | No real invoice written; approved policies and DB RPC missing |
-| Integration CI | [PR #17](../../pull/17) | Basic tracked-secret scan, backend and billing tests, branch-flow PR gate | Repo admin must require CI gate on main/develop for enforcement |
+| Backend Phase 0 | [PR #12](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/12) | Express health/404 endpoints; CI passed | No database CRUD |
+| Billing calculations | [PR #14](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/14) | **16 passing** Node unit tests: exact minor-unit money, variants, tax, discounts, month-end, catch-up simulation | Fake adapter tests are not PostgreSQL concurrency proof |
+| Backend Phase 1 | [PR #19](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/19) | **29 passing** Vitest auth/health tests; server-verified Auth app_metadata roles | Supabase responses mocked; live sign-in/reset not yet tested |
+| Protected billing route | [PR #16](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/16) | **2 passing** billing-route negative tests; route reuses actual Express RBAC | No real invoice written; approved policies and DB RPC missing |
+| Integration CI | [PR #17](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/17) | Basic tracked-secret scan, backend and billing tests, branch-flow PR gate | Repo admin must require CI gate on main/develop for enforcement |
 
 Test totals: backend 31 (29 Phase1 + 2 billing route), separate billing 16 — 47 *unit/HTTP-mock* tests, all from the cited successful GitHub Actions run. This is **not 47 end-to-end tests**.
 
 ## Pending, not allowed to claim complete
-- **Database:** [draft PR #15](../../pull/15) proposes schema/RLS/atomic billing SQL. It has **not** been run against connected Supabase. Harsha must review/apply/test with actual Auth accounts before declaring persistence secure.
+- **Database:** [draft PR #15](https://github.com/sanjuskb/odoo-national-hackathon-2026/pull/15) proposes schema/RLS/atomic billing SQL. It has **not** been run against connected Supabase. Harsha must review/apply/test with actual Auth accounts before declaring persistence secure.
 - **Frontend:** the remote `feature/ravi-frontend` branch has no React implementation as of the last source-tree audit. Ravi may have uncommitted local code; GitHub cannot see it.
 - **AI/voice:** Sanju reports a Gemini/Murf/telephony foundation with 43 tests; those files/tests were not present on the remote `feature/sanju-integration` branch at audit time. Do not report them as verified.
 - **Billing scheduler:** the current admin POST /api/v1/billing/run is an explicitly configured/manual batch trigger, **not** unattended automatic recurring execution.
