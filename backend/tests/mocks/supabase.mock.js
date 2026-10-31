@@ -298,6 +298,7 @@ function createSupabaseMock() {
     let rangeFrom = 0;
     let rangeTo = Infinity;
     let selectColumns = '*';
+    let selectOptions = {};
     let updatePayload = null;
     let insertPayload = null;
     let isDelete = false;
@@ -398,12 +399,17 @@ function createSupabaseMock() {
         }
       }
 
+      if (selectOptions && selectOptions.head) {
+        return { data: null, error: null, count: totalCount };
+      }
+
       return { data: paged, error: null, count: totalCount };
     }
 
     const builder = {
-      select: (cols = '*', _options) => {
+      select: (cols = '*', options = {}) => {
         selectColumns = cols;
+        selectOptions = options || {};
         return builder;
       },
       insert: (payload) => {
