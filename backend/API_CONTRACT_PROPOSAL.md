@@ -212,3 +212,4 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 7. **Proration:** On mid-cycle changes, prorate or full-period billing?
 8. **Email provider:** For password reset and invoice send — which service?
 9. **Scheduler:** Cron job, Supabase Edge Function, or manual trigger for billing?
+
