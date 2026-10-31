@@ -3,6 +3,7 @@
 const { getSupabaseAdmin } = require('../lib/supabase');
 const AppError = require('../utils/AppError');
 const { formatMoney, parseMoney } = require('../utils/money');
+const { chunkArray, mapConcurrent } = require('../utils/async');
 const { computeInvoiceFinancials, canTransition } = require('../services/invoice.service');
 const invoiceLinesRepo = require('./invoiceLines.repository');
 const paymentsRepo = require('./payments.repository');
@@ -118,22 +119,25 @@ async function list(
   const invoiceRows = data || [];
   const invoiceIds = invoiceRows.map((r) => r.id);
 
-  // Batch query payments to avoid N+1 queries
+  // Batch query payments to avoid N+1 queries (chunk size <= 100, bounded concurrency 5)
   let paymentsByInvoiceId = new Map();
   if (invoiceIds.length > 0) {
-    const { data: pmtData, error: pmtError } = await client
-      .from('payments')
-      .select('invoice_id, amount')
-      .in('invoice_id', invoiceIds);
+    const chunks = chunkArray(invoiceIds, 100);
+    await mapConcurrent(chunks, 5, async (batch) => {
+      const { data: pmtData, error: pmtError } = await client
+        .from('payments')
+        .select('invoice_id, amount')
+        .in('invoice_id', batch);
 
-    if (!pmtError && pmtData) {
-      for (const p of pmtData) {
-        if (!paymentsByInvoiceId.has(p.invoice_id)) {
-          paymentsByInvoiceId.set(p.invoice_id, []);
+      if (!pmtError && pmtData) {
+        for (const p of pmtData) {
+          if (!paymentsByInvoiceId.has(p.invoice_id)) {
+            paymentsByInvoiceId.set(p.invoice_id, []);
+          }
+          paymentsByInvoiceId.get(p.invoice_id).push(p);
         }
-        paymentsByInvoiceId.get(p.invoice_id).push(p);
       }
-    }
+    });
   }
 
   const items = invoiceRows.map((row) => {

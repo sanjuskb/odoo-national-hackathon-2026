@@ -13,6 +13,8 @@ const request = require('supertest');
 const app = require('../src/app');
 const { setInjectedClients, resetInjectedClients } = require('../src/lib/supabase');
 const { createSupabaseMock } = require('../tests/mocks/supabase.mock');
+const reportsRepo = require('../src/repositories/reports.repository');
+const reportCache = require('../src/utils/reportCache');
 
 function calculateStats(timings) {
   const sorted = [...timings].sort((a, b) => a - b);
@@ -95,23 +97,75 @@ async function runMockBenchmark() {
 
   const tGen = ((performance.now() - t0) / 1000).toFixed(2);
   console.log(`Dataset created in ${tGen}s.`);
-  console.log('Running 5 iterations per endpoint to measure latency...');
+  console.log('Measuring database round trips and latency (MOCK data)...');
   console.log('------------------------------------------------------------------------');
 
   const benchmarks = [
-    { name: 'GET /api/v1/reports/summary', path: '/api/v1/reports/summary?from=2026-10-01&to=2026-10-31' },
-    { name: 'GET /api/v1/reports/overdue-invoices', path: '/api/v1/reports/overdue-invoices?page=1&limit=20' },
-    { name: 'GET /api/v1/reports/payments', path: '/api/v1/reports/payments?page=1&limit=20' },
-    { name: 'GET /api/v1/reports/subscriptions', path: '/api/v1/reports/subscriptions' },
-    { name: 'GET /api/v1/invoices?limit=100', path: '/api/v1/invoices?page=1&limit=100' },
-    { name: 'GET /api/v1/payments', path: '/api/v1/payments?page=1&limit=20' },
+    {
+      name: 'GET /api/v1/reports/summary (FALLBACK Chunked Path)',
+      path: '/api/v1/reports/summary?from=2026-10-01&to=2026-10-31&refresh=true',
+      setup: () => {
+        reportsRepo.resetRpcStatusForTest();
+        reportsRepo.setRpcStatusForTest({ available: false });
+        reportCache.clear();
+      },
+    },
+    {
+      name: 'GET /api/v1/reports/summary (RPC Optimized Path)',
+      path: '/api/v1/reports/summary?from=2026-10-01&to=2026-10-31&refresh=true',
+      setup: () => {
+        mock.registerRpc('get_finance_summary_report', () => ({
+          active_subscriptions: 3000,
+          paused_subscriptions: 625,
+          revenue_invoiced: '10000000.00',
+          revenue_collected: '7500000.00',
+          outstanding_balance: '2500000.00',
+          overdue_count: 1666,
+          overdue_amount: '1666000.00',
+          as_of: '2026-10-31',
+        }));
+        reportsRepo.setRpcStatusForTest({ available: true });
+        reportCache.clear();
+      },
+    },
+    {
+      name: 'GET /api/v1/reports/overdue-invoices',
+      path: '/api/v1/reports/overdue-invoices?page=1&limit=20',
+      setup: () => {},
+    },
+    {
+      name: 'GET /api/v1/reports/payments',
+      path: '/api/v1/reports/payments?page=1&limit=20',
+      setup: () => {},
+    },
+    {
+      name: 'GET /api/v1/reports/subscriptions',
+      path: '/api/v1/reports/subscriptions?refresh=true',
+      setup: () => {
+        reportCache.clear();
+      },
+    },
+    {
+      name: 'GET /api/v1/invoices?limit=100',
+      path: '/api/v1/invoices?page=1&limit=100',
+      setup: () => {},
+    },
+    {
+      name: 'GET /api/v1/payments',
+      path: '/api/v1/payments?page=1&limit=20',
+      setup: () => {},
+    },
   ];
 
   const results = [];
 
   for (const b of benchmarks) {
+    b.setup();
     const timings = [];
+    let recordedRoundTrips = 0;
+
     for (let run = 1; run <= 5; run++) {
+      mock.resetRoundTripCount();
       const start = performance.now();
       const res = await request(app)
         .get(b.path)
@@ -122,13 +176,18 @@ async function runMockBenchmark() {
         console.error(`Error on ${b.name}: ${res.status}`, res.body);
       }
       timings.push(duration);
+      recordedRoundTrips = mock.getRoundTripCount();
     }
     const stats = calculateStats(timings);
+    const est60 = recordedRoundTrips * 60;
+    const est120 = recordedRoundTrips * 120;
+
     results.push({
       Endpoint: b.name,
-      'Min (ms)': stats.min,
-      'Median (ms)': stats.median,
-      'Max (ms)': stats.max,
+      'DB Round Trips': recordedRoundTrips,
+      'Measured (ms)': `${stats.median} ms`,
+      'Est @ 60ms RTT': `${est60} ms`,
+      'Est @ 120ms RTT': `${est120} ms`,
     });
   }
 

@@ -4,6 +4,7 @@ const { getSupabaseAdmin } = require('../lib/supabase');
 const AppError = require('../utils/AppError');
 const { formatMoney, parseMoney } = require('../utils/money');
 const { toDateOnly } = require('../utils/dates');
+const { chunkArray, mapConcurrent } = require('../utils/async');
 
 function mapDiscountFromDb(row, productIds = []) {
   if (!row) return null;
@@ -90,19 +91,22 @@ async function list({ page = 1, page_size = 20, is_active } = {}, client = getSu
 
   let mappingsMap = new Map();
   if (productScopedIds.length > 0) {
-    const { data: mappings } = await client
-      .from('discount_product_mappings')
-      .select('discount_rule_id, product_id')
-      .in('discount_rule_id', productScopedIds);
+    const chunks = chunkArray(productScopedIds, 100);
+    await mapConcurrent(chunks, 5, async (batch) => {
+      const { data: mappings } = await client
+        .from('discount_product_mappings')
+        .select('discount_rule_id, product_id')
+        .in('discount_rule_id', batch);
 
-    if (mappings) {
-      for (const m of mappings) {
-        if (!mappingsMap.has(m.discount_rule_id)) {
-          mappingsMap.set(m.discount_rule_id, []);
+      if (mappings) {
+        for (const m of mappings) {
+          if (!mappingsMap.has(m.discount_rule_id)) {
+            mappingsMap.set(m.discount_rule_id, []);
+          }
+          mappingsMap.get(m.discount_rule_id).push(m.product_id);
         }
-        mappingsMap.get(m.discount_rule_id).push(m.product_id);
       }
-    }
+    });
   }
 
   return {

@@ -4,7 +4,37 @@ const { getSupabaseAdmin } = require('../lib/supabase');
 const AppError = require('../utils/AppError');
 const { formatMoney, parseMoney } = require('../utils/money');
 const { toDateOnly } = require('../utils/dates');
+const { chunkArray, mapConcurrent } = require('../utils/async');
 const { computeDaysOverdue, isInvoiceOverdue } = require('../services/reports.service');
+
+const RPC_SUMMARY_FUNCTION = 'get_finance_summary_report';
+const RPC_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+if (!global.__brightloop_rpc_availability) {
+  global.__brightloop_rpc_availability = {
+    tested: false,
+    available: false,
+    lastChecked: 0,
+  };
+}
+
+const rpcAvailability = global.__brightloop_rpc_availability;
+
+function getRpcStatus() {
+  return { ...rpcAvailability };
+}
+
+function resetRpcStatusForTest() {
+  rpcAvailability.tested = false;
+  rpcAvailability.available = false;
+  rpcAvailability.lastChecked = 0;
+}
+
+function setRpcStatusForTest({ available = true, lastChecked = Date.now() } = {}) {
+  rpcAvailability.tested = true;
+  rpcAvailability.available = available;
+  rpcAvailability.lastChecked = lastChecked;
+}
 
 // TEMPORARY - replace with a database function/view
 // All aggregations below use bounded chunk paging (1000 rows max per chunk)
@@ -186,9 +216,8 @@ async function batchFetchPaymentsForInvoices(invoiceIds, client) {
   const paymentsByInvoice = new Map();
   if (!invoiceIds || invoiceIds.length === 0) return paymentsByInvoice;
 
-  const batchSize = 100;
-  for (let i = 0; i < invoiceIds.length; i += batchSize) {
-    const batch = invoiceIds.slice(i, i + batchSize);
+  const chunks = chunkArray(invoiceIds, 100);
+  await mapConcurrent(chunks, 5, async (batch) => {
     const { data, error } = await client
       .from('payments')
       .select('invoice_id, amount')
@@ -205,7 +234,7 @@ async function batchFetchPaymentsForInvoices(invoiceIds, client) {
         );
       }
     }
-  }
+  });
 
   return paymentsByInvoice;
 }
@@ -351,26 +380,24 @@ async function listOverdueInvoices(
   const invIds = rows.map((r) => r.id);
   const paymentsMap = await batchFetchPaymentsForInvoices(invIds, client);
 
-  // Fetch customer metadata in batch if available
+  // Fetch customer metadata in batch if available (bounded concurrency 5)
   const customerMap = new Map();
   const uniqueCustomerIds = [...new Set(rows.map((r) => r.customer_id))];
-  await Promise.all(
-    uniqueCustomerIds.map(async (cid) => {
-      try {
-        const { data: userData } = await client.auth.admin.getUserById(cid);
-        if (userData && userData.user) {
-          customerMap.set(cid, {
-            id: cid,
-            name: userData.user.user_metadata?.full_name || userData.user.email || 'Customer',
-            email: userData.user.email || null,
-          });
-        }
-      } catch {
-        // Fallback
-        customerMap.set(cid, { id: cid, name: 'Customer', email: null });
+  await mapConcurrent(uniqueCustomerIds, 5, async (cid) => {
+    try {
+      const { data: userData } = await client.auth.admin.getUserById(cid);
+      if (userData && userData.user) {
+        customerMap.set(cid, {
+          id: cid,
+          name: userData.user.user_metadata?.full_name || userData.user.email || 'Customer',
+          email: userData.user.email || null,
+        });
       }
-    })
-  );
+    } catch {
+      // Fallback
+      customerMap.set(cid, { id: cid, name: 'Customer', email: null });
+    }
+  });
 
   const items = [];
   for (const inv of rows) {
@@ -492,6 +519,113 @@ async function listPaymentsReport(
   };
 }
 
+async function getSummaryReportFallback(
+  { from = null, to = null, customer_id = null, plan_id = null, today = toDateOnly(new Date()) } = {},
+  client = getSupabaseAdmin()
+) {
+  const [
+    subCounts,
+    invoicedTotalMinor,
+    collectedData,
+    outstandingData,
+  ] = await Promise.all([
+    countSubscriptionsByStatus({ customer_id, plan_id }, client),
+    getInvoicedTotal({ from, to, customer_id, plan_id }, client),
+    getCollectedTotal({ from, to, customer_id }, client),
+    getOutstandingAndOverdue({ customer_id, plan_id, today }, client),
+  ]);
+
+  return {
+    active_subscriptions: subCounts.active,
+    paused_subscriptions: subCounts.paused,
+    revenue_invoiced: formatMoney(invoicedTotalMinor),
+    revenue_collected: formatMoney(collectedData.totalMinor),
+    outstanding_balance: formatMoney(outstandingData.outstandingMinor),
+    overdue_count: outstandingData.overdueCount,
+    overdue_amount: formatMoney(outstandingData.overdueAmountMinor),
+    as_of: toDateOnly(today),
+    filters: {
+      from: from || null,
+      to: to || null,
+      customer_id: customer_id || null,
+      plan_id: plan_id || null,
+    },
+    _source: 'fallback',
+  };
+}
+
+async function getSummaryReport(
+  { from = null, to = null, customer_id = null, plan_id = null, today = toDateOnly(new Date()) } = {},
+  client = getSupabaseAdmin()
+) {
+  const now = Date.now();
+  const canTryRpc =
+    !rpcAvailability.tested ||
+    rpcAvailability.available ||
+    now - rpcAvailability.lastChecked > RPC_CACHE_TTL_MS;
+
+  if (canTryRpc && typeof client.rpc === 'function') {
+    try {
+      const { data, error } = await client.rpc(RPC_SUMMARY_FUNCTION, {
+        p_from: from || null,
+        p_to: to || null,
+        p_customer_id: customer_id || null,
+        p_plan_id: plan_id || null,
+        p_as_of: today || null,
+      });
+
+      if (!error && data) {
+        rpcAvailability.tested = true;
+        rpcAvailability.available = true;
+        rpcAvailability.lastChecked = now;
+        const payload = typeof data === 'string' ? JSON.parse(data) : data;
+        return {
+          active_subscriptions: Number(payload.active_subscriptions || 0),
+          paused_subscriptions: Number(payload.paused_subscriptions || 0),
+          revenue_invoiced: formatMoney(parseMoney(payload.revenue_invoiced || 0)),
+          revenue_collected: formatMoney(parseMoney(payload.revenue_collected || 0)),
+          outstanding_balance: formatMoney(parseMoney(payload.outstanding_balance || 0)),
+          overdue_count: Number(payload.overdue_count || 0),
+          overdue_amount: formatMoney(parseMoney(payload.overdue_amount || 0)),
+          as_of: toDateOnly(payload.as_of || today),
+          filters: {
+            from: from || null,
+            to: to || null,
+            customer_id: customer_id || null,
+            plan_id: plan_id || null,
+          },
+          _source: 'rpc',
+        };
+      }
+
+      const isMissingRpc =
+        error &&
+        (error.code === 'PGRST202' ||
+          error.code === '42883' ||
+          (error.message &&
+            (error.message.includes('function') ||
+              error.message.includes('not found') ||
+              error.message.includes('schema cache'))));
+
+      if (isMissingRpc) {
+        rpcAvailability.tested = true;
+        rpcAvailability.available = false;
+        rpcAvailability.lastChecked = now;
+      }
+    } catch {
+      rpcAvailability.tested = true;
+      rpcAvailability.available = false;
+      rpcAvailability.lastChecked = now;
+    }
+  }
+
+  // Fallback to chunked in-memory aggregation
+  return getSummaryReportFallback(
+    { from, to, customer_id, plan_id, today },
+    client
+  );
+}
+
 module.exports = {
   countSubscriptionsByStatus,
   getInvoicedTotal,
@@ -499,4 +633,10 @@ module.exports = {
   getOutstandingAndOverdue,
   listOverdueInvoices,
   listPaymentsReport,
+  getSummaryReport,
+  getSummaryReportFallback,
+  getRpcStatus,
+  resetRpcStatusForTest,
+  setRpcStatusForTest,
+  batchFetchPaymentsForInvoices,
 };

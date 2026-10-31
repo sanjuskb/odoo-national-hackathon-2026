@@ -2,38 +2,36 @@
 
 const reportsRepo = require('../repositories/reports.repository');
 const reportsService = require('../services/reports.service');
+const reportCache = require('../utils/reportCache');
 const { toDateOnly } = require('../utils/dates');
 const { sendSuccess } = require('../utils/response');
 
 async function getSummary(req, res, next) {
   try {
+    const isRefresh = req.query.refresh === 'true';
+    const cacheKey = reportCache.normalizeKey('summary', req.query);
+
+    if (!isRefresh) {
+      const cached = reportCache.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return sendSuccess(res, cached, 'Financial summary retrieved successfully');
+      }
+    }
+
     const { from, to, customer_id, plan_id } = req.query;
     const today = req.query.today || toDateOnly(new Date());
 
-    const [
-      subCounts,
-      invoicedTotalMinor,
-      collectedData,
-      outstandingData,
-    ] = await Promise.all([
-      reportsRepo.countSubscriptionsByStatus({ customer_id, plan_id }),
-      reportsRepo.getInvoicedTotal({ from, to, customer_id, plan_id }),
-      reportsRepo.getCollectedTotal({ from, to, customer_id }),
-      reportsRepo.getOutstandingAndOverdue({ customer_id, plan_id, today }),
-    ]);
-
-    const summary = reportsService.assembleSummaryReport({
-      activeSubscriptions: subCounts.active,
-      pausedSubscriptions: subCounts.paused,
-      revenueInvoicedMinor: invoicedTotalMinor,
-      revenueCollectedMinor: collectedData.totalMinor,
-      outstandingMinor: outstandingData.outstandingMinor,
-      overdueCount: outstandingData.overdueCount,
-      overdueAmountMinor: outstandingData.overdueAmountMinor,
+    const summary = await reportsRepo.getSummaryReport({
+      from,
+      to,
+      customer_id,
+      plan_id,
       today,
-      filters: { from, to, customer_id, plan_id },
     });
 
+    reportCache.set(cacheKey, summary);
+    res.setHeader('X-Cache', 'MISS');
     return sendSuccess(res, summary, 'Financial summary retrieved successfully');
   } catch (err) {
     next(err);
@@ -85,6 +83,17 @@ async function getPaymentsReport(req, res, next) {
 
 async function getSubscriptionsReport(req, res, next) {
   try {
+    const isRefresh = req.query.refresh === 'true';
+    const cacheKey = reportCache.normalizeKey('subscriptions', req.query);
+
+    if (!isRefresh) {
+      const cached = reportCache.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return sendSuccess(res, cached, 'Subscription report retrieved successfully');
+      }
+    }
+
     const { customer_id, plan_id } = req.query;
 
     const counts = await reportsRepo.countSubscriptionsByStatus({
@@ -92,7 +101,10 @@ async function getSubscriptionsReport(req, res, next) {
       plan_id,
     });
 
-    return sendSuccess(res, { counts }, 'Subscription report retrieved successfully');
+    const data = { counts };
+    reportCache.set(cacheKey, data);
+    res.setHeader('X-Cache', 'MISS');
+    return sendSuccess(res, data, 'Subscription report retrieved successfully');
   } catch (err) {
     next(err);
   }

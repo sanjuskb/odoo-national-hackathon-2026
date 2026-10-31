@@ -15,6 +15,16 @@ function createSupabaseMock() {
   const invoicesTable = new Map();
   const invoiceLinesTable = new Map();
   const paymentsTable = new Map();
+  let roundTripCount = 0;
+  const registeredRpcs = new Map();
+
+  async function handlePerCallDelay() {
+    roundTripCount++;
+    const delay = parseInt(process.env.PERF_DELAY_MS, 10);
+    if (!isNaN(delay) && delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 
   function seedUser({ id, email, password = 'Password123!', full_name = 'Test User', role = 'customer', user_metadata = {} }) {
     const user = {
@@ -266,6 +276,8 @@ function createSupabaseMock() {
   }
 
   function reset() {
+    roundTripCount = 0;
+    registeredRpcs.clear();
     users.clear();
     tokens.clear();
     productsTable.clear();
@@ -313,6 +325,7 @@ function createSupabaseMock() {
     let isDelete = false;
 
     async function execute() {
+      await handlePerCallDelay();
       // Handle insert
       if (insertPayload) {
         if (Array.isArray(insertPayload)) {
@@ -578,6 +591,26 @@ function createSupabaseMock() {
       },
     },
     from: (tableName) => createQueryBuilder(tableName),
+    rpc: async (fnName, params = {}) => {
+      await handlePerCallDelay();
+      if (registeredRpcs.has(fnName)) {
+        try {
+          const handler = registeredRpcs.get(fnName);
+          const res = await handler(params);
+          return { data: res, error: null };
+        } catch (err) {
+          return { data: null, error: { message: err.message, status: 500 } };
+        }
+      }
+      return {
+        data: null,
+        error: {
+          code: 'PGRST202',
+          message: `Could not find the function public.${fnName} in the schema cache`,
+          status: 404,
+        },
+      };
+    },
   };
 
   const publicClient = {
@@ -616,11 +649,41 @@ function createSupabaseMock() {
       },
     },
     from: (tableName) => createQueryBuilder(tableName),
+    rpc: async (fnName, params = {}) => {
+      await handlePerCallDelay();
+      if (registeredRpcs.has(fnName)) {
+        try {
+          const handler = registeredRpcs.get(fnName);
+          const res = await handler(params);
+          return { data: res, error: null };
+        } catch (err) {
+          return { data: null, error: { message: err.message, status: 500 } };
+        }
+      }
+      return {
+        data: null,
+        error: {
+          code: 'PGRST202',
+          message: `Could not find the function public.${fnName} in the schema cache`,
+          status: 404,
+        },
+      };
+    },
   };
 
   return {
     adminClient,
     publicClient,
+    getRoundTripCount: () => roundTripCount,
+    resetRoundTripCount: () => {
+      roundTripCount = 0;
+    },
+    registerRpc: (fnName, handler) => {
+      registeredRpcs.set(fnName, handler);
+    },
+    unregisterRpc: (fnName) => {
+      registeredRpcs.delete(fnName);
+    },
     seedUser,
     seedProduct,
     seedVariant,
