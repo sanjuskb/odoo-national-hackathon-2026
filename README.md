@@ -20,10 +20,12 @@ The official challenge is a unified platform for **products and product variants
 
 | Team member | GitHub | Ownership |
 |---|---|---|
-| Sanju | [@sanjuskb](https://github.com/sanjuskb) | Team leadership, **deterministic invoice-generation service and billing-period orchestration**, optional AI assistant, integration QA, presentation |
+| Sanju | [@sanjuskb](https://github.com/sanjuskb) | Team leadership, **primary owner of deterministic invoice-generation service/workflow**, AI assistant/voice innovation, integration QA and presentation |
 | Ravi | [@donnyravi-alt](https://github.com/donnyravi-alt) | Overall architecture coordination, frontend, UX and API client |
-| Amarnadh / Amarnath | [@amarnathgaddam75](https://github.com/amarnathgaddam75) | Backend Express APIs, business logic, auth, payments/reporting, integration of Sanju's billing service |
+| Amarnadh / Amarnath | [@amarnathgaddam75](https://github.com/amarnathgaddam75) | Express backend APIs, general business logic and validation; integrates Sanju's invoice-generation service into backend routes |
 | Harsha | [@harsha-1706](https://github.com/harsha-1706) | Supabase PostgreSQL, migrations, RLS, data integrity |
+
+**Invoice-generation collaboration boundary:** Sanju owns the generation service and billing-period workflow; Amarnadh owns the surrounding Express API integration; Harsha owns schema, persistence, database uniqueness and RLS. Coordinate contracts before editing shared interfaces. Invoice amounts and ledger state must remain deterministic server-side logic, never LLM-generated.
 
 The evaluator is **not** a developer. Confirm their required access level separately.
 
