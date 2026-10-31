@@ -65,7 +65,7 @@ At each checkpoint check PR statuses, exact request/response names, auth role/ow
 ## Repo administration checks (owner)
 Open **Settings → Rules → Rulesets** (or **Branches**) and confirm `main` and `develop` require PR reviews and essential passing checks *after the first successful CI workflow run*. The GitHub app may not be able to inspect or change admin-only rules. Do not enforce nonexistent check names before the workflow first runs. Require the actual named `Repository integrity and secret-file guard` check once available. Consider module checks as required when apps exist.
 
-If the evaluator only needs to inspect code, choose **Read** permission rather than **Write**, subject to organizer instructions.
+**Evaluator access on personal repositories:** GitHub personal-account repositories offer an owner and collaborators; a collaborator has read/write access rather than a separately selectable Read-only role. The evaluator's observed Write permission is therefore normal for a personal repository collaborator. Confirm organizer instructions and keep `main` / `develop` protected rather than transferring the repository during the event. See [GitHub personal repo permissions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/permission-levels-for-a-personal-account-repository).
 
 ## Scope discipline
 - `docs/official/` is official PS transcription. Do not change it to match an implementation preference.
