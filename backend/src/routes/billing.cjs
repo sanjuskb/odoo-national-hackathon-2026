@@ -2,11 +2,12 @@
 const express=require('express');
 const {runDueBilling}=require('../../../billing/src/runner.cjs');
 const {createSupabaseBillingRepository}=require('../services/supabaseBillingRepository.cjs');
-const {requireBillingAdmin}=require('../middleware/billingAdmin.cjs');
+const authenticate=require('../middleware/authenticate');
+const requireRole=require('../middleware/requireRole');
 
-function createBillingRouter({adminGuard=requireBillingAdmin,repositoryFactory=createSupabaseBillingRepository}={}) {
+function createBillingRouter({authMiddleware=authenticate,roleMiddleware=requireRole('admin'),repositoryFactory=createSupabaseBillingRepository}={}) {
   const router=express.Router();
-  router.post('/run',adminGuard,async(req,res)=>{
+  router.post('/run',authMiddleware,roleMiddleware,async(req,res)=>{
     const taxMode=process.env.BILLING_TAX_MODE;
     const discountStacking=process.env.BILLING_DISCOUNT_STACKING;
     if(!['inclusive','exclusive'].includes(taxMode)||!['best','all'].includes(discountStacking)||process.env.BILLING_ROUNDING!=='half-up'){
