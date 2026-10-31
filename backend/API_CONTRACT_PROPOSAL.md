@@ -1,6 +1,6 @@
 # API Contract Proposal — Brightloop Subscription Management System
 
-> **Status:** PROPOSED — awaiting approval from Sanju (architect), Ravi (frontend) and Harsha (database).
+> **Status:** PROPOSED — awaiting approval from Sanju (billing service/team lead), Ravi (architecture/frontend) and Harsha (database).
 > **Owner:** Amarnadh (backend)
 > **Date:** 2026-10-31
 > **Source:** [Official Problem Statement](../docs/official/problem-statement.md), [Requirements](../docs/requirements/requirements.md), [Proposed API Contracts](../docs/integration/api-contracts.md)
@@ -265,6 +265,8 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 | FR-012 | POST | /subscriptions/:id/transition | Staff, Admin | `{ action }` | `{ subscription: Subscription }` | action ∈ {confirm_quotation, confirm, activate, close}; must follow lifecycle order; early close/pause/renew subject to plan policy | 403, 404, 409, 422 | subscriptions | Proposed |
 
 ### BILLING (FR-013, FR-017)
+
+**Ownership:** Sanju supplies deterministic invoice calculations and period orchestration; Amarnadh protects/hosts the Express endpoint; Harsha enforces PostgreSQL atomic persistence and unique billing periods. Proposed route is not proof of live billing.
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
