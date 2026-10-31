@@ -1,30 +1,31 @@
-## Pull Request Summary
+## Summary and scoped changes
+Explain what changed and why. Is this PR documentation, implementation, migration, or release?
 
-### Description
-Provide a concise overview of the changes implemented in this pull request.
+### Owner / module
+- [ ] Frontend — Ravi
+- [ ] Backend — Amarnadh
+- [ ] Database — Harsha
+- [ ] AI / integration — Sanju
+- [ ] Shared docs / configuration
 
-### Associated Module
-- [ ] Frontend (`frontend/`)
-- [ ] Backend (`backend/`)
-- [ ] Database (`database/`)
-- [ ] Documentation (`docs/`)
-- [ ] Testing (`tests/`)
-- [ ] DevOps / CI/CD
+### Requirements and contract changes
+- Requirement IDs from `docs/requirements/requirements.md`:
+- API paths/request/response changes (if any):
+- DB schema/migration/RLS changes (if any):
+- Other affected module owners notified:
 
-### Type of Change
-- [ ] New feature (non-breaking change adding functionality)
-- [ ] Bug fix (non-breaking change fixing an issue)
-- [ ] Refactoring (code cleanup, performance improvement)
-- [ ] Documentation update
-- [ ] Test cases
+### Evidence
+- [ ] No real secrets, private tokens or .env files committed.
+- [ ] Existing tests executed (or explain why not applicable).
+- [ ] CI status checked on this PR; failures understood.
+- [ ] At least one relevant integration smoke test executed (or list blocker).
+- [ ] API schemas and migrations agree with dependent modules.
+- [ ] UI handles loading/empty/error states when applicable.
+- [ ] Billing is retry-safe, idempotent and permission checked when applicable.
+- [ ] `docs/team/task-board.md` updated if task status changed.
 
-### Problem Statement Requirement Mapping
-> Reference the specific requirement or user story once the problem statement is released.
+**Actual commands/test results and blockers**:
 
-### Quality and Security Checklist
-- [ ] My code adheres to the project's architectural guidelines and coding standards.
-- [ ] I have performed a self-review of my code.
-- [ ] No hardcoded secrets, API keys, or private credentials are included.
-- [ ] Existing automated tests pass locally.
-- [ ] Relevant documentation has been updated.
-- [ ] PR target is set to `develop` (not directly to `main`).
+### Merge destination
+- [ ] Feature / documentation PR targets `develop`.
+- [ ] Final release PR targets `main` **only after** integrated verification.

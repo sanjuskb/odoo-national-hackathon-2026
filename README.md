@@ -1,162 +1,82 @@
-# Odoo National Hackathon 2026
+# Brightloop Subscription Management System
 
-[![Repository Status: Private](https://img.shields.io/badge/visibility-private-red.svg)](https://github.com/sanjuskb/odoo-national-hackathon-2026)
-[![Default Branch: main](https://img.shields.io/badge/default%20branch-main-blue.svg)](https://github.com/sanjuskb/odoo-national-hackathon-2026/tree/main)
-[![Integration Branch: develop](https://img.shields.io/badge/integration%20branch-develop-green.svg)](https://github.com/sanjuskb/odoo-national-hackathon-2026/tree/develop)
+**Odoo National-Level Hackathon 2026 · Official problem statement released 31 October 2026**
 
-Welcome to the central engineering repository for our team participating in the **Odoo National Level Hackathon 2026**. This repository serves as our single source of truth across all stages of the competition, from requirements discovery and system architecture through the virtual round and national finale.
+> **Current implementation status:** Engineering documentation and initial repository structure exist. Feature implementation, real Supabase connectivity, automated billing and tests must be verified before marking them complete. **Do not mistake planned architecture for running code.**
 
----
+## START HERE — ALL FOUR TEAM MEMBERS
 
-> ### 📢 Official Problem Statement Status: PENDING RELEASE
-> The competition problem statement has not yet been officially released. This repository is structured to remain flexible, clean, and immediately adaptable once the problem statement and technological constraints are published.
+1. [Official four-page problem statement transcription](docs/official/problem-statement.md) and [source register](docs/official/source-register.md).
+2. [Requirements register](docs/requirements/requirements.md) and [acceptance criteria](docs/requirements/acceptance-criteria.md).
+3. [Proposed solution](docs/solution/recommended-solution.md) and [architecture proposal](docs/architecture/system-architecture-proposal.md).
+4. [API contracts — proposed](docs/integration/api-contracts.md) and [database design — proposed](docs/architecture/database-design-proposal.md).
+5. [Billing correctness](docs/architecture/billing-engine-design.md): one invoice per subscription/billing period; no skipped intervals.
+6. [Today's development readiness and Git commands](docs/team/DEVELOPMENT_READINESS.md), [team work board](docs/team/task-board.md), and [integration checkpoints](docs/team/integration-checkpoints.md).
+7. [Five-minute evaluator demonstration plan](docs/demo/five-minute-demo-blueprint.md).
 
----
+The official challenge is a unified platform for **products and product variants, recurring billing plans, quotation templates, subscription lifecycles, taxes, discounts, automatically generated invoices, recorded payments, a customer portal, role-based access and financial reports**. The PDF calls for **under-two-second page responses with thousands of subscriptions**. It does **not** require AI/ML or a live card payment gateway.
 
-## 👥 Team Roles & Responsibilities
+## Team ownership
 
-Our team operates with clear ownership across architectural tiers:
+| Team member | GitHub | Ownership |
+|---|---|---|
+| Sanju | [@sanjuskb](https://github.com/sanjuskb) | Team leadership, integration, presentation and AI only if justified |
+| Ravi | [@donnyravi-alt](https://github.com/donnyravi-alt) | Overall architecture coordination, frontend, UX and API client |
+| Amarnadh / Amarnath | [@amarnathgaddam75](https://github.com/amarnathgaddam75) | Backend Express APIs, business logic, validation and billing |
+| Harsha | [@harsha-1706](https://github.com/harsha-1706) | Supabase PostgreSQL, migrations, RLS, data integrity |
 
-| Team Member | GitHub Username | Role | Primary Responsibilities |
-|---|---|---|---|
-| **Sanju** | [`@sanjuskb`](https://github.com/sanjuskb) | **Team Lead & Architect** | Overall system architecture, cross-module integration, coordination, pull request approvals, release management |
-| **Ravi** | [`@donnyravi-alt`](https://github.com/donnyravi-alt) | **Frontend Engineer** | UI/UX development, component state management, API integration, final demo presentation |
-| **Amarnath** | [`@amarnathgaddam75`](https://github.com/amarnathgaddam75) | **Backend Engineer** | Backend architecture, business logic implementation, API contract enforcement, authentication & services |
-| **Harsha** | [`@harsha-1706`](https://github.com/harsha-1706) | **Database Engineer** | Schema modeling, database migrations, query optimization, data seeding & integrity |
-| **Vivek Pathak** | [`@vivp-odoo`](https://github.com/vivp-odoo) | **Evaluator** | Project evaluation, code review, milestone tracking (*Read-only permissions*) |
+The evaluator is **not** a developer. Confirm their required access level separately.
 
----
+## Current technology direction
 
-## 📁 Repository Structure
+- **Frontend:** React/TypeScript (specific build tool to be finalized by Ravi).
+- **Backend:** Node.js/Express, `/api/v1` base route, structured JSON response envelope.
+- **Database/Auth:** Supabase PostgreSQL/Auth was the team-approved direction; connection and schema are not automatically complete.
+- **AI:** Not required by official statement; Sanju should prioritize integration and evaluator demonstration.
 
-The repository is organized modularly to enable frictionless parallel development:
-
-```text
-odoo-national-hackathon-2026/
-│
-├── .github/                       # GitHub collaboration and review templates
-│   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
-│   └── pull_request_template.md  # Standardized PR checklist
-│
-├── .vscode/                      # Recommended editor extensions
-│   └── extensions.json
-│
-├── docs/                         # Engineering specifications and plans
-│   ├── EVENT_BRIEF.md            # Competition overview and timeline
-│   ├── REQUIREMENTS.md           # Functional & non-functional requirements
-│   ├── ARCHITECTURE.md           # System design & module communication
-│   ├── TEAM_WORK_PLAN.md         # Milestone plan & team protocols
-│   ├── API_CONTRACTS.md          # REST / JSON API specifications
-│   ├── DATABASE_DESIGN.md        # ER models, migrations, & data dictionaries
-│   ├── TEST_PLAN.md              # Quality assurance & verification strategy
-│   └── DEMO_SCRIPT.md            # Final jury presentation script
-│
-├── frontend/                     # Client application (UI/UX components)
-│   └── .gitkeep
-│
-├── backend/                      # Application server & business logic
-│   └── .gitkeep
-│
-├── database/                     # Migrations, seed scripts, & SQL definitions
-│   └── .gitkeep
-│
-├── tests/                        # Automated unit, integration, & e2e test suites
-│   └── .gitkeep
-│
-├── .env.example                  # Safe template for environment variables
-├── .gitignore                    # Robust exclusion for secrets, logs, & artifacts
-└── README.md                     # Project documentation root
-```
-
----
-
-## 🌿 Git Branching Strategy
-
-To maintain stability and facilitate continuous integration under tight hackathon timelines, we enforce a two-tier trunk/integration branch workflow:
+## Repository workflow (do not push directly to protected branches)
 
 ```text
-  main (Stable, tagged submissions)
-   ▲
-   │  [Approved Release PR]
-   │
-  develop (Shared integration branch)
-   ▲             ▲             ▲             ▲
-   │ [PR]        │ [PR]        │ [PR]        │ [PR]
-   │             │             │             │
-feature/      feature/      feature/      feature/
-sanju-*       ravi-*        amarnath-*    harsha-*
+feature/ravi-*       feature/amarnath-*       feature/harsha-*       feature/sanju-*
+       \                    |                       |                       /
+        \---------- Reviewed small PRs into develop ----------------------/
+                                      |
+                               integrated tests
+                                      |
+                           release PR to protected main
 ```
 
-### 1. `main` Branch
-- Contains only stable, verified, demo-ready code.
-- Represents submission milestones and final deliverables.
-- **Direct commits are prohibited.** All additions arrive via tested Pull Requests from `develop`.
+`main` = stable verified release. `develop` = continuously integrated work. `feature/*` = individual experiments and implementation. GitHub's **Active branches** list is a display category, not another branch layer.
 
-### 2. `develop` Branch
-- The active integration branch where all individual feature work converges.
-- Serves as the target branch for feature pull requests.
+### Local quick start (PowerShell)
 
-### 3. Feature Branches
-Each developer works exclusively within their designated feature branch namespace:
-- **Sanju:** `feature/sanju-<task-name>` (e.g., `feature/sanju-integration`)
-- **Ravi:** `feature/ravi-<task-name>` (e.g., `feature/ravi-dashboard-ui`)
-- **Amarnath:** `feature/amarnath-<task-name>` (e.g., `feature/amarnath-auth-api`)
-- **Harsha:** `feature/harsha-<task-name>` (e.g., `feature/harsha-schema-migration`)
-
----
-
-## 🚀 Quickstart: Developer Workflow
-
-### 1. Clone the Repository
-```bash
+```powershell
 git clone https://github.com/sanjuskb/odoo-national-hackathon-2026.git
 cd odoo-national-hackathon-2026
+git fetch origin
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/<your-name>-<small-task>
 ```
 
-### 2. Sync with `develop`
-```bash
-git checkout develop
-git pull origin develop
+**Existing branch?** Do not recreate it. Fetch and merge `origin/develop` into your feature branch after safeguarding uncommitted work.
+
+```powershell
+git status
+git fetch origin
+git switch feature/<your-existing-branch>
+git merge origin/develop
+git push origin feature/<your-existing-branch>
 ```
 
-### 3. Create your Task-Specific Feature Branch
-```bash
-# Pattern: feature/<member-name>-<task>
-git checkout -b feature/<your-name>-<feature-description>
-```
+Only use commands after confirming the branch and a clean working tree. Open a PR into **`develop`**, test, review and merge. Keep all secrets in locally ignored `.env`; use the example file for variable *names*, never actual credentials. Check provider rules for automated tooling.
 
-### 4. Commit Changes Locally
-Follow clear, imperative commit messages:
-```bash
-git add .
-git commit -m "feat(module): add initial user authentication endpoints"
-```
+## Automated quality gates
 
-### 5. Push Feature Branch & Open a Pull Request
-```bash
-git push -u origin feature/<your-name>-<feature-description>
-```
-- Open a Pull Request on GitHub targeting **`develop`** (not `main`).
-- Fill in the PR template details.
-- Request review from teammates.
+CI is defined in [GitHub Actions](.github/workflows/ci.yml). It checks repository structure/secret-prone tracked files and conditionally builds/tests frontend or backend **when their `package.json` and lockfiles exist**. CI green on documentation alone **does not mean the app works**. Run manual role-isolation, billing idempotency and end-to-end checks before final release.
 
----
+## Video and submission
 
-## 🔒 Security & Secret Management
+The provided event schedule ends coding at 5:00 PM (31 October) and requests a **five-minute video link by 5:30 PM**. Sanju leads the final explanation. Do not claim incomplete functionality; use [demo acceptance criteria](docs/quality/demo-acceptance-checklist.md).
 
-- **NEVER** commit `.env` files, API credentials, private tokens, or database passwords.
-- Always use `.env.example` as a template for team environment configuration.
-- Local configuration files are strictly ignored by `.gitignore`.
-- If an API key or password is leaked by mistake, immediately rotate the credential and notify the Team Lead.
-
----
-
-## 🏆 Hackathon Submission Checklist
-- [ ] Problem statement requirements fully traced in `docs/REQUIREMENTS.md`.
-- [ ] End-to-end integration verified on `develop`.
-- [ ] Automated tests passing cleanly.
-- [ ] Verified build merged into `main`.
-- [ ] Submission tag created on `main`.
-- [ ] Final demo pitch prepared according to `docs/DEMO_SCRIPT.md`.
+**For newcomers:** read [docs/START_HERE.md](docs/START_HERE.md) and your named team plan under [docs/team/](docs/team/).
