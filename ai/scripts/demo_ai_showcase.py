@@ -14,7 +14,12 @@ Usage:
 """
 
 import sys
+import os
+from pathlib import Path
 import time
+
+# Ensure root directory is on PYTHONPATH
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from typing import Dict, Any
 
 # Ensure UTF-8 output on all operating systems including Windows
