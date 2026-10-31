@@ -21,7 +21,7 @@ Our team operates with clear ownership across architectural tiers:
 |---|---|---|---|
 | **Sanju** | [`@sanjuskb`](https://github.com/sanjuskb) | **Team Lead & Architect** | Overall system architecture, cross-module integration, coordination, pull request approvals, release management |
 | **Ravi** | [`@donnyravi-alt`](https://github.com/donnyravi-alt) | **Frontend Engineer** | UI/UX development, component state management, API integration, final demo presentation |
-| **Amarnadh** | [`@amarnathgaddam75`](https://github.com/amarnathgaddam75) | **Backend Engineer** | Backend architecture, business logic implementation, API contract enforcement, authentication & services |
+| **Amarnath** | [`@amarnathgaddam75`](https://github.com/amarnathgaddam75) | **Backend Engineer** | Backend architecture, business logic implementation, API contract enforcement, authentication & services |
 | **Harsha** | [`@harsha-1706`](https://github.com/harsha-1706) | **Database Engineer** | Schema modeling, database migrations, query optimization, data seeding & integrity |
 | **Vivek Pathak** | [`@vivp-odoo`](https://github.com/vivp-odoo) | **Evaluator** | Project evaluation, code review, milestone tracking (*Read-only permissions*) |
 
@@ -86,7 +86,7 @@ To maintain stability and facilitate continuous integration under tight hackatho
    │ [PR]        │ [PR]        │ [PR]        │ [PR]
    │             │             │             │
 feature/      feature/      feature/      feature/
-sanju-*       ravi-*        amarnadh-*    harsha-*
+sanju-*       ravi-*        amarnath-*    harsha-*
 ```
 
 ### 1. `main` Branch
@@ -102,7 +102,7 @@ sanju-*       ravi-*        amarnadh-*    harsha-*
 Each developer works exclusively within their designated feature branch namespace:
 - **Sanju:** `feature/sanju-<task-name>` (e.g., `feature/sanju-integration`)
 - **Ravi:** `feature/ravi-<task-name>` (e.g., `feature/ravi-dashboard-ui`)
-- **Amarnadh:** `feature/amarnadh-<task-name>` (e.g., `feature/amarnadh-auth-api`)
+- **Amarnath:** `feature/amarnath-<task-name>` (e.g., `feature/amarnath-auth-api`)
 - **Harsha:** `feature/harsha-<task-name>` (e.g., `feature/harsha-schema-migration`)
 
 ---
