@@ -42,7 +42,7 @@
 | ├ Admin script | `backend/scripts/create-admin.js` created | ✅ Done |
 | ├ Automated tests | 29/29 Vitest + Supertest passing (mocked Supabase) | ✅ Done |
 | ├ Health curl | Live server verified returning `status: "healthy"` | ✅ Done |
-| ├ Real smoke check | Skipped with reason: no live `backend/.env` credentials present | ⚠️ Skipped |
+| ├ Real smoke check | Verified against live Supabase project (Odoo Hackathon): register, login, me all 200/201 | ✅ Done |
 | **Phase 2** | Products, variants and plans CRUD | ⬜ Next task |
 | **Phase 3** | Taxes, discounts, quotation templates | ⬜ Not started |
 | **Phase 4** | Subscriptions: CRUD, lifecycle transitions, lines | ⬜ Not started |
@@ -103,12 +103,11 @@
    - Harsha owns the database schema and has not yet committed migrations for the `profiles` table.
    - Per Step 5 instructions, role storage currently uses Supabase Auth `app_metadata.role` via admin API calls.
    - When Harsha confirms and migrates the `profiles` table, `services/roleStore.js` will be updated to query `profiles(user_id, role)`.
-2. **Mocked Supabase Client in Tests:**
-   - All 29 Vitest tests run against an in-memory injectable mock of Supabase Admin and Public auth APIs (`tests/mocks/supabase.mock.js`).
-   - These tests prove Express middleware, RBAC, input validation, error handling, and security invariants, but do NOT prove real live Supabase Auth network behavior.
-3. **Real Smoke Check Skipped:**
-   - No `backend/.env` file exists with active Supabase project credentials.
-   - Fail-fast verification was executed and confirmed: running `node src/server.js` outside test mode cleanly throws `[CONFIG ERROR] Missing required environment variable(s)`.
+2. **Real Supabase Auth Verified Live:**
+   - Live smoke test executed against the team's active Supabase project (`Odoo Hackathon`, ref `bdmwwpfglltcpagwblmk`, ap-southeast-2).
+   - Real registration (`POST /api/v1/auth/register`), login (`POST /api/v1/auth/login`), and token verification (`GET /api/v1/auth/me`) succeeded with real JWT issuance and validation.
+3. **Vitest Mocked Test Suite:**
+   - Automated unit/integration tests continue to run via the fast in-memory mock harness (`tests/mocks/supabase.mock.js`) for CI determinism (29/29 pass).
 
 ---
 
