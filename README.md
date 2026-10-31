@@ -2,7 +2,7 @@
 
 **Odoo National-Level Hackathon 2026 · Official problem statement released 31 October 2026**
 
-> **Current implementation status:** Engineering documentation and initial repository structure exist. Feature implementation, real Supabase connectivity, automated billing and tests must be verified before marking them complete. **Do not mistake planned architecture for running code.**
+> **Verified at 31 October audit:** Amarnadh's Phase 0 Express health endpoint and two tests are integrated; GitHub CI passed. Frontend UI, database migrations/RLS, billing persistence, AI/voice and complete end-to-end flows remain **unverified or unimplemented**. Documentation is not evidence of running features.
 
 ## START HERE — ALL FOUR TEAM MEMBERS
 
@@ -20,9 +20,9 @@ The official challenge is a unified platform for **products and product variants
 
 | Team member | GitHub | Ownership |
 |---|---|---|
-| Sanju | [@sanjuskb](https://github.com/sanjuskb) | Team leadership, integration, presentation and AI only if justified |
+| Sanju | [@sanjuskb](https://github.com/sanjuskb) | Team leadership, **deterministic invoice-generation service and billing-period orchestration**, optional AI assistant, integration QA, presentation |
 | Ravi | [@donnyravi-alt](https://github.com/donnyravi-alt) | Overall architecture coordination, frontend, UX and API client |
-| Amarnadh / Amarnath | [@amarnathgaddam75](https://github.com/amarnathgaddam75) | Backend Express APIs, business logic, validation and billing |
+| Amarnadh / Amarnath | [@amarnathgaddam75](https://github.com/amarnathgaddam75) | Backend Express APIs, business logic, auth, payments/reporting, integration of Sanju's billing service |
 | Harsha | [@harsha-1706](https://github.com/harsha-1706) | Supabase PostgreSQL, migrations, RLS, data integrity |
 
 The evaluator is **not** a developer. Confirm their required access level separately.
