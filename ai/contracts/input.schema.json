@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sanjuskb/odoo-national-hackathon-2026/ai/contracts/input.schema.json",
+  "title": "AIInferenceInputPayload",
+  "description": "Provisional input schema for AI inference requests. Fields will be finalized with Amarnath once the problem statement is released.",
+  "type": "object",
+  "required": ["request_id", "features"],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "description": "Unique UUID or request identifier from backend for end-to-end tracing."
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "Identifier of the entity (e.g., user, item, order, document) being evaluated."
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature dictionary consumed by the model. TODO: FINALIZE AFTER OFFICIAL PROBLEM STATEMENT",
+      "additionalProperties": true
+    },
+    "options": {
+      "type": "object",
+      "description": "Optional inference control flags.",
+      "properties": {
+        "explain": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to compute and include feature attribution or explanation strings."
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 5000,
+          "description": "Client-specified timeout ceiling in milliseconds."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+
