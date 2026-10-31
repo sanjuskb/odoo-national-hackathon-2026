@@ -1,0 +1,225 @@
+erDiagram
+    PROFILES ||--o{ SUBSCRIPTIONS : "places (customer_id)"
+    PROFILES ||--o{ INVOICES : "billed_to (customer_id)"
+    PROFILES ||--o{ AI_ASSISTANCE_EVENTS : "requests (customer_id)"
+
+    PRODUCTS ||--o{ PRODUCT_VARIANTS : "offers (product_id)"
+    PRODUCTS ||--o{ PLANS : "billed_through (product_id)"
+    PRODUCTS ||--o{ SUBSCRIPTION_LINES : "line_item (product_id)"
+    PRODUCTS ||--o{ INVOICE_LINES : "snapshot_item (product_id)"
+    PRODUCTS ||--o{ DISCOUNT_PRODUCT_MAPPINGS : "scoped_to (product_id)"
+    PRODUCTS ||--o{ QUOTATION_TEMPLATE_LINES : "preset_item (product_id)"
+
+    PLANS ||--o{ SUBSCRIPTIONS : "governs (plan_id)"
+    PLANS ||--o{ QUOTATION_TEMPLATES : "standardizes (plan_id)"
+
+    QUOTATION_TEMPLATES ||--|{ QUOTATION_TEMPLATE_LINES : "composed_of (template_id)"
+    QUOTATION_TEMPLATES ||--o{ SUBSCRIPTIONS : "originates (template_id)"
+
+    SUBSCRIPTIONS ||--|{ SUBSCRIPTION_LINES : "includes (subscription_id)"
+    SUBSCRIPTIONS ||--o{ INVOICES : "generates (subscription_id)"
+
+    DISCOUNT_RULES ||--o{ DISCOUNT_PRODUCT_MAPPINGS : "scopes (discount_rule_id)"
+    DISCOUNT_RULES ||--o{ DISCOUNT_REDEMPTIONS : "applied_via (discount_rule_id)"
+
+    INVOICES ||--|{ INVOICE_LINES : "itemizes (invoice_id)"
+    INVOICES ||--o{ PAYMENTS : "settled_by (invoice_id)"
+    INVOICES ||--o{ DISCOUNT_REDEMPTIONS : "snapshots (invoice_id)"
+
+    PROFILES {
+        uuid id PK "references auth.users"
+        text email UK
+        text full_name
+        text role "admin | staff | customer"
+        text account_status "active | suspended"
+        text phone
+        text company_name
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    PRODUCTS {
+        uuid id PK
+        text name
+        text type "software | addon | service"
+        numeric sales_price
+        numeric cost_price
+        text notes
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    PRODUCT_VARIANTS {
+        uuid id PK
+        uuid product_id FK
+        text name "e.g. Brand: Odoo"
+        numeric price_adjustment "+560.00"
+        text sku UK
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    PLANS {
+        uuid id PK
+        uuid product_id FK
+        text name
+        numeric price
+        char currency "e.g. USD, EUR"
+        text frequency "daily | weekly | monthly | yearly"
+        integer min_quantity
+        date available_from
+        date available_until
+        boolean auto_close
+        boolean allow_early_close
+        boolean allow_pause
+        boolean allow_renew
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    TAX_RULES {
+        uuid id PK
+        text name
+        numeric rate_percent "0 to 100"
+        text description
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    QUOTATION_TEMPLATES {
+        uuid id PK
+        text name
+        uuid plan_id FK
+        integer validity_days
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    QUOTATION_TEMPLATE_LINES {
+        uuid id PK
+        uuid template_id FK
+        uuid product_id FK
+        uuid variant_id FK
+        integer quantity
+        timestamptz created_at
+    }
+
+    SUBSCRIPTIONS {
+        uuid id PK
+        text subscription_number UK
+        uuid customer_id FK
+        uuid plan_id FK
+        uuid template_id FK
+        date start_date
+        date expiry_date
+        text payment_terms
+        text status "draft | quotation | confirmed | active | paused | closed"
+        date next_billing_date
+        date billing_anchor_date
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    SUBSCRIPTION_LINES {
+        uuid id PK
+        uuid subscription_id FK
+        uuid product_id FK
+        uuid variant_id FK
+        integer quantity
+        text description
+        numeric unit_price
+        numeric variant_adjustment
+        numeric tax_rate_percent
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    DISCOUNT_RULES {
+        uuid id PK
+        text name
+        text kind "fixed | percentage"
+        numeric value
+        text scope "product | subscription"
+        numeric min_amount
+        integer min_quantity
+        date valid_from
+        date valid_until
+        integer max_uses
+        integer used_count
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    DISCOUNT_PRODUCT_MAPPINGS {
+        uuid discount_rule_id PK,FK
+        uuid product_id PK,FK
+    }
+
+    INVOICES {
+        uuid id PK
+        uuid subscription_id FK "UQ(subscription_id, billing_period_start)"
+        uuid customer_id FK
+        date billing_period_start
+        date billing_period_end_exclusive
+        date due_date
+        char currency
+        text status "draft | confirmed | paid | cancelled"
+        numeric subtotal
+        numeric discount_total
+        numeric tax_total
+        numeric total
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    INVOICE_LINES {
+        uuid id PK
+        uuid invoice_id FK
+        uuid product_id FK
+        text description
+        integer quantity
+        numeric unit_price
+        numeric variant_adjustment
+        numeric base_amount
+        numeric discount_amount
+        numeric tax_percent
+        numeric tax_amount
+        numeric line_total
+    }
+
+    DISCOUNT_REDEMPTIONS {
+        uuid id PK
+        uuid discount_rule_id FK
+        uuid invoice_id FK "UQ(discount_rule_id, invoice_id)"
+        numeric amount
+    }
+
+    PAYMENTS {
+        uuid id PK
+        uuid invoice_id FK
+        numeric amount
+        text method
+        timestamptz paid_at
+        text note
+        text external_reference "UQ(invoice_id, external_reference)"
+        timestamptz created_at
+    }
+
+    AI_ASSISTANCE_EVENTS {
+        uuid id PK
+        uuid customer_id FK
+        text event_type "chat_inquiry | assistance_call_requested | call_triggered | call_completed | call_failed"
+        boolean consent_given
+        text phone
+        text provider_call_id
+        text status "pending | in_progress | completed | failed | cancelled"
+        jsonb metadata
+        integer retry_count
+        timestamptz created_at
+        timestamptz updated_at
+    }

@@ -8,7 +8,7 @@
 | Quotation templates | Staff UI | Commercial | Harsha | Proposed |
 | Subscriptions and lines | Staff/customer operations | Customer + commercial | Harsha | Proposed |
 | Taxes/discounts | Admin settings | Financial rules | Harsha | Proposed |
-| Invoices/lines | Billing engine | Financial | Harsha | Proposed |
+| Invoices/lines | Billing engine (Sanju) | Financial | Sanju (engine) + Harsha (DB) | Proposed |
 | Payments | Authorized staff recording | Financial | Harsha | Proposed |
 | Finance totals | Calculated DB/API aggregates | Financial | Amarnadh + Harsha | Proposed |
 | Demo records | Explicit synthetic fixtures | Synthetic | All | Not production |

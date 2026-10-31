@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sanjuskb/odoo-national-hackathon-2026/ai/contracts/output.schema.json",
+  "title": "AIInferenceOutputEnvelope",
+  "description": "Standardized response envelope returned by the AI module to the backend.",
+  "type": "object",
+  "required": ["success", "model_version", "metadata", "error"],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "True if inference executed without fatal errors; false otherwise."
+    },
+    "model_version": {
+      "type": "string",
+      "description": "Semantic identifier of the executing model or heuristic engine."
+    },
+    "result": {
+      "description": "Prediction result payload (null if success is false). TODO: FINALIZE AFTER OFFICIAL PROBLEM STATEMENT",
+      "type": ["object", "null"],
+      "properties": {
+        "prediction": {
+          "description": "Primary predicted class, continuous value, category, or recommendation list."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Calibrated model confidence score between 0.0 and 1.0."
+        },
+        "explanation": {
+          "type": ["string", "object", "null"],
+          "description": "Human-readable or structured explanation of why the prediction was made."
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["latency_ms", "fallback_used", "timestamp"],
+      "properties": {
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Wall-clock inference latency in milliseconds."
+        },
+        "fallback_used": {
+          "type": "boolean",
+          "description": "Indicates whether the prediction was produced by the fallback heuristic."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 UTC timestamp of execution."
+        }
+      },
+      "additionalProperties": true
+    },
+    "error": {
+      "description": "Null on successful inference, populated on error.",
+      "type": ["object", "null"]
+    }
+  },
+  "additionalProperties": false
+}
+

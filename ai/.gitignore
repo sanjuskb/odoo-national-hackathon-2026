@@ -1,0 +1,82 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables & secrets (CRITICAL)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.token
+credentials.json
+
+# Model weights and artifacts (keep large binaries out of git)
+models/*.bin
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.tar.gz
+!models/.gitkeep
+!models/README.md
+
+# Datasets (large files ignored, preserve directory structure)
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/external/*
+!data/external/.gitkeep
+data/sample/*
+!data/sample/README.md
+!data/sample/*.sample.json
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Pytest & coverage cache
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor & OS artifacts
+.DS_Store
+Thumbs.db
+
