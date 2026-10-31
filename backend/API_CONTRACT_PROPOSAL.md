@@ -374,18 +374,131 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-009 | GET | /quotation-templates | Any authenticated | — (query: page, page_size) | `{ items: [Template], pagination }` | — | 401 | quotation_templates | Proposed |
-| FR-009 | POST | /quotation-templates | Admin | `{ name, plan_id, validity_days, lines: [{ product_id, variant_id?, quantity }] }` | `{ template: Template }` | plan_id valid, validity_days > 0, lines non-empty | 403, 422 | quotation_templates, template_lines | Proposed |
-| FR-009 | GET | /quotation-templates/:id | Any authenticated | — | `{ template: Template, lines: [TemplateLine] }` | Valid UUID | 401, 404 | quotation_templates, template_lines | Proposed |
+| FR-009 | GET | /quotation-templates | Admin, Staff | — (query: page, limit, search) | `{ items: [Template], pagination }` | Customer receives 403 Forbidden | 401, 403 | quotation_templates | Implemented |
+| FR-009 | POST | /quotation-templates | Admin | `{ name, plan_id, validity_days, lines: [{ product_id, variant_id?, quantity }] }` | `{ template: Template }` | plan_id valid, validity_days >= 1, lines non-empty, product and variant valid | 400, 401, 403 | quotation_templates, quotation_template_lines | Implemented |
+| FR-009 | GET | /quotation-templates/:id | Admin, Staff | — | `{ template: Template }` (includes lines) | Valid UUID; customer receives 403 | 401, 403, 404 | quotation_templates, quotation_template_lines | Implemented |
+| FR-009 | PATCH | /quotation-templates/:id | Admin | Partial template fields & optional lines | `{ template: Template }` | Replaces lines atomically as far as data layer allows | 400, 401, 403, 404 | quotation_templates, quotation_template_lines | Implemented |
+
+#### Implemented Quotation Template Examples
+
+##### 1. POST /api/v1/quotation-templates (Admin)
+- **Request Body:**
+```json
+{
+  "name": "Enterprise Package Template",
+  "plan_id": "44444444-4444-4444-8444-444444444444",
+  "validity_days": 14,
+  "lines": [
+    {
+      "product_id": "11111111-1111-4111-8111-111111111111",
+      "variant_id": "33333333-3333-4333-8333-333333333333",
+      "quantity": 3
+    }
+  ]
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "template": {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "name": "Enterprise Package Template",
+      "plan_id": "44444444-4444-4444-8444-444444444444",
+      "validity_days": 14,
+      "created_at": "2026-10-31T07:00:00.000Z",
+      "updated_at": "2026-10-31T07:00:00.000Z",
+      "lines": [
+        {
+          "id": "tl-1",
+          "template_id": "d0000000-0000-4000-8000-000000000001",
+          "product_id": "11111111-1111-4111-8111-111111111111",
+          "variant_id": "33333333-3333-4333-8333-333333333333",
+          "quantity": 3,
+          "created_at": "2026-10-31T07:00:00.000Z",
+          "updated_at": "2026-10-31T07:00:00.000Z"
+        }
+      ]
+    }
+  },
+  "message": "Quotation template created successfully",
+  "errors": null
+}
+```
 
 ### SUBSCRIPTIONS (FR-010, FR-011, FR-012)
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-010 | GET | /subscriptions | Staff, Admin | — (query: page, page_size, status, customer_id) | `{ items: [Subscription], pagination }` | — | 401, 403 | subscriptions | Proposed |
-| FR-010, FR-011 | POST | /subscriptions | Staff, Admin | `{ customer_id, plan_id, start_date, expiry_date, payment_terms, template_id?, lines: [{ product_id, variant_id?, quantity }] }` | `{ subscription: Subscription }` | Auto-generates unique number; plan must be available; lines required unless template_id provided | 403, 422 | subscriptions, subscription_lines | Proposed |
-| FR-010 | GET | /subscriptions/:id | Staff, Admin (or owning customer) | — | `{ subscription: Subscription, lines: [SubscriptionLine] }` | Valid UUID; ownership check for customer role | 401, 403, 404 | subscriptions, subscription_lines | Proposed |
-| FR-012 | POST | /subscriptions/:id/transition | Staff, Admin | `{ action }` | `{ subscription: Subscription }` | action ∈ {confirm_quotation, confirm, activate, close}; must follow lifecycle order; early close/pause/renew subject to plan policy | 403, 404, 409, 422 | subscriptions | Proposed |
+| FR-010 | GET | /subscriptions | Authenticated (Any) | — (query: page, limit, status, customer_id, plan_id, search) | `{ items: [Subscription], pagination }` | Customer sees ONLY own subscriptions (query customer_id ignored) | 401 | subscriptions | Implemented |
+| FR-010, FR-011 | POST | /subscriptions | Staff, Admin | `{ customer_id, plan_id?, start_date, expiry_date, payment_terms, template_id?, lines? }` | `{ subscription: Subscription }` | Generates SUB-YYYYMM-XXXXXX; template copies plan/lines; server computes prices | 400, 401, 403, 409 | subscriptions, subscription_lines | Implemented |
+| FR-010 | GET | /subscriptions/:id | Authenticated (Any) | — | `{ subscription: Subscription }` | Customer only sees own record (404 otherwise to prevent enumeration) | 401, 404 | subscriptions, subscription_lines | Implemented |
+| FR-010 | PATCH | /subscriptions/:id | Staff, Admin | Partial fields | `{ subscription: Subscription }` | Allowed only in draft or quotation (409 otherwise); cannot alter status/number | 400, 401, 403, 404, 409 | subscriptions, subscription_lines | Implemented |
+| FR-012 | POST | /subscriptions/:id/transition | Authenticated (Role-aware) | `{ action }` | `{ subscription: Subscription }` | draft->quotation->confirmed->active->closed; customer limited to pause/resume/close/renew | 400, 401, 403, 404, 409 | subscriptions | Implemented |
+| FR-008 | POST | /subscriptions/auto-close | Admin | — | `{ closed_count: number, closed_ids: [] }` | Manually triggered admin job; closes expired active subscriptions with auto_close=true | 401, 403 | subscriptions, plans | Implemented |
+
+#### Implemented Subscription Examples
+
+##### 1. POST /api/v1/subscriptions (Staff / Admin)
+- **Request Body:**
+```json
+{
+  "customer_id": "c0a80101-0000-4000-8000-000000000001",
+  "plan_id": "44444444-4444-4444-8444-444444444444",
+  "start_date": "2026-06-01",
+  "expiry_date": "2026-12-01",
+  "payment_terms": "net_30",
+  "lines": [
+    {
+      "product_id": "11111111-1111-4111-8111-111111111111",
+      "variant_id": "33333333-3333-4333-8333-333333333333",
+      "quantity": 3
+    }
+  ]
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "subscription": {
+      "id": "s0000000-0000-4000-8000-000000000001",
+      "subscription_number": "SUB-202610-A1B2C3",
+      "customer_id": "c0a80101-0000-4000-8000-000000000001",
+      "plan_id": "44444444-4444-4444-8444-444444444444",
+      "start_date": "2026-06-01",
+      "expiry_date": "2026-12-01",
+      "payment_terms": "net_30",
+      "status": "draft",
+      "valid_until": null,
+      "template_id": null,
+      "next_billing_date": null,
+      "billing_anchor_date": null,
+      "is_paused": false,
+      "subtotal": "4680.00",
+      "lines": [
+        {
+          "id": "l-1",
+          "subscription_id": "s0000000-0000-4000-8000-000000000001",
+          "product_id": "11111111-1111-4111-8111-111111111111",
+          "variant_id": "33333333-3333-4333-8333-333333333333",
+          "quantity": 3,
+          "unit_price": "1560.00",
+          "tax_id": null,
+          "amount": "4680.00",
+          "description": "Brightloop Base Product (Odoo Brand)",
+          "variant_adjustment": "560.00",
+          "tax_rate_percent": "0.00"
+        }
+      ]
+    }
+  },
+  "message": "Subscription created successfully",
+  "errors": null
+}
+```
 
 ### BILLING (FR-013, FR-017)
 
@@ -425,11 +538,11 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-025 | GET | /portal/subscriptions | Customer | — (query: page, page_size, status) | `{ items: [Subscription], pagination }` | Always scoped to authenticated customer | 401 | subscriptions | Proposed |
+| FR-025 | GET | /portal/subscriptions | Customer | — (query: page, limit, status) | `{ items: [Subscription], pagination }` | Always scoped to authenticated customer | 401 | subscriptions | Implemented |
 | FR-025 | GET | /portal/invoices | Customer | — (query: page, page_size, status) | `{ items: [Invoice], pagination }` | Always scoped to authenticated customer | 401 | invoices | Proposed |
-| FR-025, FR-008 | POST | /portal/subscriptions/:id/pause | Customer | — | `{ subscription: Subscription }` | Plan must allow_pause; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Proposed |
-| FR-025, FR-008 | POST | /portal/subscriptions/:id/close | Customer | — | `{ subscription: Subscription }` | Plan must allow_early_close; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Proposed |
-| FR-025, FR-008 | POST | /portal/subscriptions/:id/renew | Customer | — | `{ subscription: Subscription }` | Plan must allow_renew; subscription must be closed or expiring; owned by customer | 401, 403, 404, 409 | subscriptions | Proposed |
+| FR-025, FR-008 | POST | /portal/subscriptions/:id/pause | Customer | — | `{ subscription: Subscription }` | Plan must allow_pause; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |
+| FR-025, FR-008 | POST | /portal/subscriptions/:id/close | Customer | — | `{ subscription: Subscription }` | Plan must allow_early_close; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |
+| FR-025, FR-008 | POST | /portal/subscriptions/:id/renew | Customer | — | `{ subscription: Subscription }` | Plan must allow_renew; subscription must be closed or expiring; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |
 
 ---
 

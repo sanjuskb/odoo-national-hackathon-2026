@@ -6,9 +6,9 @@
 |-------|-------|
 | Branch | `feature/amarnath-products-plans` |
 | Base Used | `origin/develop` (`74a226f`) |
-| Current Phase | **Phase 2: Products, Variants, and Plans** |
-| Commits | `8cb447c`, `d9d4c3c`, `c674803`, `10a1e2f` |
-| Date | 2026-10-31 ~12:20 IST |
+| Current Phase | **Phase 3: Quotation Templates and Subscriptions Lifecycle** |
+| Commits | `8cb447c`, `d9d4c3c`, `c674803`, `10a1e2f`, `8a729ec`, `32b66ce`, `12be048`, `dd7bf2b`, `e56d2b1`, `a88fcd4` |
+| Date | 2026-10-31 ~13:00 IST |
 | Author | Amarnadh (backend) |
 
 ---
@@ -58,8 +58,23 @@
 | ├ Plan validation | Frequencies (daily, weekly, monthly, yearly); merged date & quantity re-validation on PATCH | ✅ Done |
 | ├ Automated tests | 88/88 Vitest tests passing across whole suite | ✅ Done |
 | ├ Real smoke check | Skipped with reason: tables `public.products`, `public.product_variants`, `public.plans` do not exist in live Supabase (`PGRST205`) | ⚠️ Skipped |
-| **Phase 3** | Quotation templates and subscriptions CRUD/lifecycle | ⬜ Next task |
-| **Phase 4** | Taxes, discounts, discount-to-product mappings | ⬜ Not started |
+| **Phase 3** | Quotation templates and subscriptions CRUD/lifecycle | ✅ Completed |
+| ├ Date helper | `src/utils/dates.js` (UTC date-only, addDays, addPeriod with month-end/leap year clamping) | ✅ Done |
+| ├ Repositories | `quotationTemplates.repository.js`, `subscriptions.repository.js`, `subscriptionLines.repository.js` | ✅ Done |
+| ├ Lifecycle service | `src/services/subscriptionLifecycle.service.js` (pure transition evaluator, allowed actions by status, role permissions) | ✅ Done |
+| ├ Quotation templates | `GET /quotation-templates`, `POST /quotation-templates`, `GET /quotation-templates/:id`, `PATCH /quotation-templates/:id` | ✅ Done |
+| ├ Template permissions | Admin write, staff read, customer 403 on all template endpoints | ✅ Done |
+| ├ Subscriptions create | `POST /subscriptions` (unique SUB-YYYYMM-XXXXXX, server pricing, exact money math, template copying) | ✅ Done |
+| ├ Money calculation | Invariant: unit prices computed server-side, client-sent prices ignored, exact integer minor units math (3x1560=4680, 3x0.10=0.30) | ✅ Done |
+| ├ Subscriptions editing | `PATCH /subscriptions/:id` permitted in draft/quotation only (409 on active/confirmed/closed; rejects status/number changes) | ✅ Done |
+| ├ Ownership scoping | Customers see only their own subscriptions (others return 404); staff/admin see all | ✅ Done |
+| ├ Lifecycle transitions | `POST /subscriptions/:id/transition` (draft -> quotation -> confirmed -> active -> closed) with conditional update preventing races | ✅ Done |
+| ├ Plan policy flags | `allow_early_close`, `allow_pause`, `allow_renew` enforced; customer restricted to pause/resume/close/renew | ✅ Done |
+| ├ Auto-close job | `POST /subscriptions/auto-close` (admin only manual batch job closing expired active subscriptions with auto_close=true) | ✅ Done |
+| ├ Customer portal | `/portal/subscriptions`, `/portal/subscriptions/:id/{pause,resume,close,renew}` thin routes | ✅ Done |
+| ├ Automated tests | 162/162 Vitest tests passing across whole suite | ✅ Done |
+| ├ Real smoke check | Skipped with reason: tables `public.quotation_templates`, `public.quotation_template_lines`, `public.subscriptions`, `public.subscription_lines` do not exist in live Supabase (`PGRST205`) | ⚠️ Skipped |
+| **Phase 4** | Taxes, discounts, discount-to-product mappings | ⬜ Next task |
 | **Phase 5** | Billing engine: idempotent invoice generation | ⬜ Not started |
 | **Phase 6** | Invoices & actions (confirm, cancel, send, print) | ⬜ Not started |
 | **Phase 7** | Payments & finance reporting dashboard | ⬜ Not started |
@@ -110,12 +125,69 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | `created_at` | TIMESTAMPTZ | `created_at` | ISO 8601 string |
 | `updated_at` | TIMESTAMPTZ | `updated_at` | ISO 8601 string |
 
+### 4. `quotation_templates` Table
+| Column Name | Type | API Field | Notes |
+|---|---|---|---|
+| `id` | UUID | `id` | Primary key |
+| `name` | TEXT | `name` | Non-empty, max 200 |
+| `plan_id` | UUID | `plan_id` | Foreign key to `plans(id)` |
+| `validity_days` | INTEGER | `validity_days` | Integer >= 1 |
+| `created_at` | TIMESTAMPTZ | `created_at` | ISO 8601 string |
+| `updated_at` | TIMESTAMPTZ | `updated_at` | ISO 8601 string |
+
+### 5. `quotation_template_lines` Table
+| Column Name | Type | API Field | Notes |
+|---|---|---|---|
+| `id` | UUID | `id` | Primary key |
+| `template_id` | UUID | `template_id` | Foreign key to `quotation_templates(id)` |
+| `product_id` | UUID | `product_id` | Foreign key to `products(id)` |
+| `variant_id` | UUID | `variant_id` | Optional foreign key to `product_variants(id)` |
+| `quantity` | INTEGER | `quantity` | Integer >= 1 |
+| `created_at` | TIMESTAMPTZ | `created_at` | ISO 8601 string |
+| `updated_at` | TIMESTAMPTZ | `updated_at` | ISO 8601 string |
+
+### 6. `subscriptions` Table
+| Column Name | Type | API Field | Notes |
+|---|---|---|---|
+| `id` | UUID | `id` | Primary key |
+| `subscription_number` | TEXT | `subscription_number` | Unique identifier (e.g. `SUB-202610-A1B2C3`) |
+| `customer_id` | UUID | `customer_id` | Foreign key to `auth.users(id)` / `profiles(id)` |
+| `plan_id` | UUID | `plan_id` | Foreign key to `plans(id)` |
+| `start_date` | DATE | `start_date` | Date-only string (YYYY-MM-DD) |
+| `expiry_date` | DATE | `expiry_date` | Date-only string (YYYY-MM-DD, >= start_date) |
+| `payment_terms` | TEXT | `payment_terms` | e.g. 'immediate', '15_days', 'net_30' |
+| `status` | TEXT | `status` | Enum: 'draft', 'quotation', 'confirmed', 'active', 'closed' |
+| `valid_until` | DATE | `valid_until` | Quotation expiry date or null |
+| `template_id` | UUID | `template_id` | Optional foreign key to `quotation_templates(id)` |
+| `next_billing_date` | DATE | `next_billing_date` | Null until activation; set to `start_date` on activation |
+| `billing_anchor_date` | DATE | `billing_anchor_date` | Anchor date for recurrence progression |
+| `is_paused` | BOOLEAN | `is_paused` | Pause indicator (status remains 'active') |
+| `created_at` | TIMESTAMPTZ | `created_at` | ISO 8601 string |
+| `updated_at` | TIMESTAMPTZ | `updated_at` | ISO 8601 string |
+
+### 7. `subscription_lines` Table
+| Column Name | Type | API Field | Notes |
+|---|---|---|---|
+| `id` | UUID | `id` | Primary key |
+| `subscription_id` | UUID | `subscription_id` | Foreign key to `subscriptions(id)` |
+| `product_id` | UUID | `product_id` | Foreign key to `products(id)` |
+| `variant_id` | UUID | `variant_id` | Optional foreign key to `product_variants(id)` |
+| `quantity` | INTEGER | `quantity` | Integer >= 1 (must satisfy plan min_quantity) |
+| `unit_price` | NUMERIC(12,2) | `unit_price` | Formatted as string with 2 decimals |
+| `tax_id` | UUID | `tax_id` | Optional reference (Phase 5) |
+| `amount` | NUMERIC(12,2) | `amount` | Formatted string with 2 decimals (quantity x unit_price) |
+| `description` | TEXT | `description` | Product title snapshot |
+| `variant_adjustment` | NUMERIC(12,2) | `variant_adjustment` | Variant delta snapshot |
+| `tax_rate_percent` | NUMERIC(5,2) | `tax_rate_percent` | Tax rate snapshot |
+| `created_at` | TIMESTAMPTZ | `created_at` | ISO 8601 string |
+| `updated_at` | TIMESTAMPTZ | `updated_at` | ISO 8601 string |
+
 ---
 
-## Endpoints Implemented in Phase 2
+## Endpoints Implemented in Phase 2 & 3
 
 | Method | Path | Role / Access | Purpose | Tested |
-|--------|------|---------------|---------|--------|
+|---|---|---|---|---|
 | `GET` | `/api/v1/products` | Authenticated | Paginated products list (cost_price hidden from customer) | ✅ 3 test cases |
 | `POST` | `/api/v1/products` | Admin only | Create new product | ✅ 6 test cases |
 | `GET` | `/api/v1/products/:id` | Authenticated | Retrieve product with variants (cost_price hidden from customer) | ✅ 3 test cases |
@@ -127,15 +199,61 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | `POST` | `/api/v1/plans` | Admin only | Create recurring plan with policy flags and date validation | ✅ 5 test cases |
 | `GET` | `/api/v1/plans/:id` | Authenticated | Retrieve plan (customers get 404 if plan is expired or future) | ✅ 3 test cases |
 | `PATCH` | `/api/v1/plans/:id` | Admin only | Partially update plan with merged date & quantity re-validation | ✅ 2 test cases |
+| `GET` | `/api/v1/quotation-templates` | Admin, Staff | Paginated quotation templates list | ✅ 2 test cases |
+| `POST` | `/api/v1/quotation-templates` | Admin only | Create template with lines & validity days | ✅ 4 test cases |
+| `GET` | `/api/v1/quotation-templates/:id` | Admin, Staff | Retrieve template with lines | ✅ 2 test cases |
+| `PATCH` | `/api/v1/quotation-templates/:id` | Admin only | Partially update template and replace lines | ✅ 2 test cases |
+| `GET` | `/api/v1/subscriptions` | Authenticated | List subscriptions (customers see only own; staff/admin see all) | ✅ 3 test cases |
+| `POST` | `/api/v1/subscriptions` | Staff, Admin | Create subscription with unique number, server prices & exact line math | ✅ 6 test cases |
+| `GET` | `/api/v1/subscriptions/:id` | Authenticated | Retrieve subscription (customers receive 404 on other's records) | ✅ 3 test cases |
+| `PATCH` | `/api/v1/subscriptions/:id` | Staff, Admin | Partially update subscription (allowed ONLY in draft/quotation status) | ✅ 3 test cases |
+| `POST` | `/api/v1/subscriptions/:id/transition` | Role-aware | Transition subscription lifecycle state with concurrency guard | ✅ 6 test cases |
+| `POST` | `/api/v1/subscriptions/auto-close` | Admin only | Manually triggered admin batch job for auto-closing expired active subscriptions | ✅ 2 test cases |
+| `GET` | `/api/v1/portal/subscriptions` | Customer | Self-service portal: list customer's own subscriptions | ✅ 2 test cases |
+| `POST` | `/api/v1/portal/subscriptions/:id/:action`| Customer | Self-service portal: pause, resume, close, renew own subscription | ✅ 3 test cases |
+
+---
+
+## Decisions and Interpretations Made
+
+1. **Subscription Number Format:**
+   - Generated as `SUB-<YYYYMM>-<6 random uppercase alphanumeric characters>` (e.g. `SUB-202610-A1B2C3`).
+   - Retries up to 5 times on unique constraint violation.
+   - Labeled `TEMPORARY - replace with a database sequence if Harsha provides one`.
+2. **Expiry Date Default:**
+   - Required on creation, must be on or after `start_date`.
+3. **Quantity Rule:**
+   - `validateQuantityForPlan(plan, line.quantity)` is evaluated per line (`quantity >= plan.min_quantity`).
+4. **Close / Pause / Renew Policy:**
+   - Cancellation prior to activation (`draft`, `quotation`, `confirmed` -> `closed`): allowed for staff/admin without plan flag.
+   - Early close from `active` status: admin may always close; staff and customers require `plan.allow_early_close = true`.
+   - Pause / resume: allowed only for `active` subscriptions; requires `plan.allow_pause = true`. Status remains `active` with `is_paused = true`.
+   - Renew: allowed only for `active` subscriptions; requires `plan.allow_renew = true`. Extends `expiry_date` by `addPeriod(expiry_date, plan.frequency)`. Clamps month-end dates (e.g. Aug 31 -> Sep 30, Jan 31 -> Feb 28/29).
+5. **Activation `next_billing_date`:**
+   - Set to `subscription.start_date` upon transition from `confirmed` -> `active`, matching billing engine's first-period requirement.
+6. **Template Instantiation Ambiguity Resolution:**
+   - If `template_id` is supplied, client must NOT pass `plan_id` or `lines` (rejected with 400). Template's plan and lines are copied directly, and `valid_until` is set to `today + validity_days`.
+
+---
+
+## Existing Billing Code Expectations & Differences
+
+1. **Expected Subscription Fields (`supabaseBillingRepository.cjs`):**
+   - Queries `subscriptions`: `id, status, customer_id, plan_id, start_date, next_billing_date, billing_anchor_date`.
+   - Queries `subscription_lines`: `product_id, description, quantity, unit_price, variant_adjustment, tax_rate_percent`.
+   - All fields match the database mapping implemented in Phase 3 repositories.
+2. **Pause Filtering in Billing:**
+   - The billing repository currently queries `.eq('status', 'active').lte('next_billing_date', asOf)` without filtering out `is_paused`.
+   - Action needed: Harsha / Sanju must add `.eq('is_paused', false)` to the billing query, or hold `next_billing_date` while paused. Recorded as needed below.
 
 ---
 
 ## Temporary or Unverified Items
 
-1. **In-Memory Mock Test Suite:**
-   - Vitest test suite uses the enhanced in-memory query builder mock in `tests/mocks/supabase.mock.js` for deterministic CI execution (88/88 tests pass).
-2. **Real Supabase DB Tables Missing:**
-   - Real smoke check for Phase 2 was skipped because Harsha has not yet migrated `public.products`, `public.product_variants`, and `public.plans` to the live database (`PGRST205: Could not find table in schema cache`).
+1. **Role Store:** User roles continue using `app_metadata.role` fallback until Harsha provides the `profiles` table.
+2. **Subscription Number Sequence:** Temporary random generation with 5 retries; replace with a PostgreSQL sequence once Harsha creates it.
+3. **Real Supabase DB Tables Missing:**
+   - Real smoke check for Phase 3 was skipped because Harsha has not yet migrated `public.quotation_templates`, `public.quotation_template_lines`, `public.subscriptions`, and `public.subscription_lines` to live Supabase (`PGRST205: Could not find table in schema cache`).
 
 ---
 
@@ -144,25 +262,33 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | # | Item | Status | Action Needed |
 |---|------|--------|---------------|
 | 1 | **`profiles` table migration** | Missing | Provide table with role column (`admin`, `staff`, `customer`). |
-| 2 | **`products` & `product_variants` migrations** | Missing | Deploy DDL as mapped above. |
+| 2 | **`products` & `product_variants` migrations** | Missing | Deploy DDL to live Supabase project. |
 | 3 | **`plans` migration** | Missing | Deploy DDL with frequency check constraint and foreign key to `products(id)`. |
-| 4 | **UNIQUE(subscription_id, billing_period_start)** | Missing | Needed for billing idempotency (Phase 5). |
+| 4 | **`quotation_templates` & lines migrations** | Missing | Deploy DDL with foreign keys to `plans` and `products`. |
+| 5 | **`subscriptions` & `subscription_lines` migrations** | Missing | Deploy DDL with `is_paused` boolean and unique `subscription_number`. |
+| 6 | **Postgres sequence for subscription numbers** | Missing | Provide sequence or RPC for sequential `SUB-YYYYMM-XXXX` IDs. |
+| 7 | **UNIQUE(subscription_id, billing_period_start)** | Missing | Needed for billing idempotency (Phase 5). |
 
 ---
 
 ## Needed from Ravi
 
-1. Review and bind frontend catalog and plan selection views to `/api/v1/products`, `/api/v1/products/:id/price`, and `/api/v1/plans`.
-2. Notice that `cost_price` will be `undefined` when customer tokens call `/api/v1/products`.
-3. Notice that `GET /api/v1/products/:id/price?variant_id=...` returns `{ product_id, variant_id, base_price, adjustment, unit_price }` as strings for instant UI calculations.
+1. **Quotation Templates UI:** Staff/admin can browse and select templates; prepopulates plan, product lines, and validity days.
+2. **Subscription Lifecycle Actions:** Render allowed action buttons per subscription status:
+   - Draft: `Send Quotation`, `Close`
+   - Quotation: `Confirm`, `Close`
+   - Confirmed: `Activate`, `Close`
+   - Active: `Close` (if allowed), `Pause` / `Resume` (if allowed), `Renew` (if allowed)
+   - Closed: Read-only, no actions
+3. **Customer Self-Service Portal:** Use `/api/v1/portal/subscriptions` and action endpoints (`/pause`, `/close`, `/renew`).
+4. **Cost Price Invariant:** Remember that `cost_price` is stripped for customer tokens; customers never see it.
 
 ---
 
 ## Next Task
 
-**Phase 3: Quotation Templates and Subscriptions**
-- Quotation templates CRUD (`GET /api/v1/quotation-templates`, `POST /api/v1/quotation-templates`, lines with validity days)
-- Subscriptions CRUD (`GET /api/v1/subscriptions`, `POST /api/v1/subscriptions` with optional template_id)
-- Subscription lifecycle state transitions: `draft` → `quotation` → `confirmed` → `active` → `closed`
-- Subscription lines math with quantity, price, and amounts
-- Customer portal subscriptions read (`GET /portal/subscriptions`)
+**Phase 4: Taxes, Discounts, and Discount-to-Product Mappings**
+- Tax rules CRUD (`GET /api/v1/taxes`, `POST /api/v1/taxes`, `PATCH /api/v1/taxes/:id`)
+- Discount rules CRUD (`GET /api/v1/discounts`, `POST /api/v1/discounts`, `PATCH /api/v1/discounts/:id`)
+- Scope support: `subscription` (whole subscription) vs `product` (product mappings)
+- Eligibility rules: `min_amount`, `min_quantity`, validity dates, `max_uses` caps
