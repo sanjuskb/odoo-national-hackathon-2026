@@ -25,6 +25,25 @@ $$;
 create trigger brightloop_auth_profile_created
 after insert on auth.users for each row execute function public.create_customer_profile();
 
+-- Amarnadh's verified roleStore uses Auth app_metadata.role. Keep PostgreSQL
+-- profiles.role in sync with that server-controlled authoritative source.
+-- A user cannot edit app_metadata via the public Supabase client.
+create or replace function public.sync_brightloop_profile_role()
+returns trigger language plpgsql security definer set search_path = public as $
+declare v_role text;
+begin
+  v_role := new.raw_app_meta_data->>'role';
+  if v_role not in ('admin','staff','customer') or v_role is null then
+    v_role := 'customer';
+  end if;
+  update public.profiles set role=v_role where id=new.id;
+  return new;
+end;
+$;
+create trigger brightloop_auth_role_metadata_changed
+after update of raw_app_meta_data on auth.users
+for each row execute function public.sync_brightloop_profile_role();
+
 create table public.products (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(trim(name))>0),
