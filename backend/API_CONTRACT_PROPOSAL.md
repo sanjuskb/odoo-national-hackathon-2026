@@ -632,19 +632,20 @@ Response (200):
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-013 | GET | /invoices | Staff, Admin (or owning customer) | — (query: page, page_size, status, customer_id, due_before, due_after) | `{ items: [Invoice], pagination }` | Ownership filtering for customer role | 401, 403 | invoices | Proposed |
-| FR-013 | GET | /invoices/:id | Staff, Admin (or owning customer) | — | `{ invoice: Invoice, lines: [InvoiceLine] }` | Ownership check | 401, 403, 404 | invoices, invoice_lines | Proposed |
-| FR-015, FR-016 | POST | /invoices/:id/confirm | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft status | 403, 404, 409 | invoices | Proposed |
-| FR-015 | POST | /invoices/:id/cancel | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft or confirmed status; "cancelled" status TBD | 403, 404, 409 | invoices | Proposed |
-| FR-015 | POST | /invoices/:id/send | Staff, Admin | — | `{ invoice: Invoice, sent: boolean }` | Must be confirmed or paid; email delivery best-effort | 403, 404, 409 | invoices | Proposed |
-| FR-015 | GET | /invoices/:id/print | Staff, Admin (or owning customer) | — | PDF or HTML representation | Must exist | 401, 403, 404 | invoices, invoice_lines | Proposed |
+| FR-013 | GET | /invoices | Staff, Admin (or owning customer) | — (query: page, page_size, status, customer_id, due_before, due_after) | `{ items: [Invoice], pagination }` | Ownership filtering for customer role | 401, 403 | invoices | Implemented |
+| FR-013 | GET | /invoices/:id | Staff, Admin (or owning customer) | — | `{ invoice: Invoice }` | Ownership check (lines, payments, financials embedded) | 401, 403, 404 | invoices, invoice_lines, payments | Implemented |
+| FR-015, FR-016 | POST | /invoices/:id/confirm | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft status | 403, 404, 409 | invoices | Implemented |
+| FR-015 | POST | /invoices/:id/cancel | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft or confirmed status with 0 payments; record kept as cancelled | 403, 404, 409 | invoices, payments | Implemented |
+| FR-015 | POST | /invoices/:id/send | Staff, Admin | `{ recipient_email? }` | `{ invoice: Invoice, sent: boolean }` | Must be confirmed or paid; returns 503 if email unconfigured | 400, 403, 404, 503 | invoices | Implemented |
+| FR-015 | GET | /invoices/:id/print | Staff, Admin (or owning customer) | — (query: `format=html` or json) | JSON or printable HTML | All fields safely HTML-escaped against XSS | 401, 403, 404 | invoices, invoice_lines | Implemented |
 
 ### PAYMENTS (FR-022, FR-023)
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-022 | POST | /invoices/:id/payments | Staff, Admin | `{ method, amount, date, note? }` | `{ payment: Payment }` | amount decimal string, must not exceed outstanding; invoice must be confirmed | 403, 404, 409, 422 | payments, invoices | Proposed |
-| FR-023 | GET | /payments | Staff, Admin | — (query: page, page_size, invoice_id, date_from, date_to) | `{ items: [Payment], pagination }` | — | 401, 403 | payments | Proposed |
+| FR-022 | POST | /invoices/:id/payments | Staff, Admin | `{ amount, payment_date?, method, reference?, note? }` | `{ payment: Payment, invoice: Invoice, willPayInFull, financials }` | Must not exceed balance due; auto-marks paid on full settlement | 400, 403, 404 | payments, invoices | Implemented |
+| FR-023 | GET | /payments | Staff, Admin | — (query: page, page_size, invoice_id, date_from, date_to) | `{ items: [Payment], pagination }` | — | 401, 403 | payments | Implemented |
+| FR-023 | GET | /invoices/:id/payments | Staff, Admin (or owning customer) | — | `{ payments: [Payment] }` | Customer scoped | 401, 403, 404 | payments, invoices | Implemented |
 
 ### REPORTS (FR-024)
 
@@ -659,7 +660,7 @@ Response (200):
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
 | FR-025 | GET | /portal/subscriptions | Customer | — (query: page, limit, status) | `{ items: [Subscription], pagination }` | Always scoped to authenticated customer | 401 | subscriptions | Implemented |
-| FR-025 | GET | /portal/invoices | Customer | — (query: page, page_size, status) | `{ items: [Invoice], pagination }` | Always scoped to authenticated customer | 401 | invoices | Proposed |
+| FR-025 | GET | /portal/invoices | Customer | — (query: page, page_size, status) | `{ items: [Invoice], pagination }` | Always scoped to authenticated customer | 401 | invoices | Implemented |
 | FR-025, FR-008 | POST | /portal/subscriptions/:id/pause | Customer | — | `{ subscription: Subscription }` | Plan must allow_pause; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |
 | FR-025, FR-008 | POST | /portal/subscriptions/:id/close | Customer | — | `{ subscription: Subscription }` | Plan must allow_early_close; subscription must be active; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |
 | FR-025, FR-008 | POST | /portal/subscriptions/:id/renew | Customer | — | `{ subscription: Subscription }` | Plan must allow_renew; subscription must be closed or expiring; owned by customer | 401, 403, 404, 409 | subscriptions | Implemented |

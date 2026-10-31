@@ -85,9 +85,18 @@
 | ├ Billing preview endpoint | `GET /api/v1/billing/preview` (admin/staff 200, customer 403, writes NOTHING to DB, rejects closed subs with 409) | ✅ Done |
 | ├ Automated tests | 202/202 Vitest tests passing across whole suite (12 test files, 0 failures, 1.37s) | ✅ Done |
 | ├ Real smoke check | Skipped with reason: tables `public.tax_rules`, `public.discount_rules` do not exist in live Supabase (`PGRST205`) and `SMOKE_ADMIN_*` not set | ⚠️ Skipped |
-| **Phase 5** | Invoices & actions (confirm, cancel, send, print) and payment ledger | 🔄 In Progress |
-| **Phase 5** | Billing engine: idempotent invoice generation | ⬜ Not started |
-| **Phase 6** | Invoices & actions (confirm, cancel, send, print) | ⬜ Not started |
+| **Phase 5** | Invoices & actions (confirm, cancel, send, print) and payment ledger | ✅ Completed |
+| ├ Financials service | `src/services/invoice.service.js` (balance due, paid amount, overdue detection, transition rules) | ✅ Done |
+| ├ Repositories | `invoices.repository.js`, `invoiceLines.repository.js`, `payments.repository.js` (batch payments query to avoid N+1) | ✅ Done |
+| ├ Invoice endpoints | `GET /api/v1/invoices`, `GET /api/v1/invoices/:id`, `POST /api/v1/invoices/:id/confirm`, `POST /api/v1/invoices/:id/cancel` | ✅ Done |
+| ├ Print endpoint | `GET /api/v1/invoices/:id/print` (JSON default, ?format=html with strict XSS escaping) | ✅ Done |
+| ├ Resend email | `POST /api/v1/invoices/:id/send` (503 if unconfigured, dispatches via global fetch to Resend API when configured) | ✅ Done |
+| ├ Payment ledger | `POST /api/v1/invoices/:id/payments` (strictly guards overpayments, moves invoice confirmed -> paid on full settlement, marked TEMPORARY non-atomic) | ✅ Done |
+| ├ Payment queries | `GET /api/v1/payments` (admin/staff only), `GET /api/v1/invoices/:id/payments` (customer scoped) | ✅ Done |
+| ├ Customer portal | `GET /api/v1/portal/invoices` (customer scoped invoices list) | ✅ Done |
+| ├ Automated tests | 252/252 Vitest tests passing across whole suite (15 test files, 0 failures, 1.50s) | ✅ Done |
+| ├ Real smoke check | Skipped with reason: tables `public.invoices`, `public.invoice_lines`, `public.payments` do not exist in live Supabase (`PGRST205`) | ⚠️ Skipped |
+| **Phase 6** | Reports & finance reporting dashboard | ⬜ Not started |
 | **Phase 7** | Payments & finance reporting dashboard | ⬜ Not started |
 | **Phase 8** | Customer self-service portal, load benchmarking (<2s target) | ⬜ Not started |
 
@@ -231,6 +240,16 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | `POST` | `/api/v1/discounts` | Admin only | Create discount rule with validation (percentage/fixed, scope) | ✅ 3 test cases |
 | `PATCH` | `/api/v1/discounts/:id` | Admin only | Partially update discount rule (cannot reduce max_uses below used_count) | ✅ 2 test cases |
 | `GET` | `/api/v1/billing/preview` | Admin, Staff | Generate next invoice preview (writes NOTHING to DB) | ✅ 4 test cases |
+| `GET` | `/api/v1/invoices` | Admin, Staff, Customer | Paginated invoices with batch financials (customer scoped to self) | ✅ 3 test cases |
+| `GET` | `/api/v1/invoices/:id` | Admin, Staff, Customer | Full invoice details with lines, payments, and financials (foreign customer 404) | ✅ 2 test cases |
+| `POST` | `/api/v1/invoices/:id/confirm` | Admin, Staff | Transition draft invoice to confirmed status (409 if non-draft) | ✅ 3 test cases |
+| `POST` | `/api/v1/invoices/:id/cancel` | Admin, Staff | Cancel draft or confirmed invoice (409 if payments exist) | ✅ 3 test cases |
+| `POST` | `/api/v1/invoices/:id/send` | Admin, Staff | Email dispatch via Resend API (503 if unconfigured, updates sent_at) | ✅ 3 test cases |
+| `GET` | `/api/v1/invoices/:id/print` | Admin, Staff, Customer | Printable invoice representation (JSON default, ?format=html with strict XSS escaping) | ✅ 3 test cases |
+| `POST` | `/api/v1/invoices/:id/payments` | Admin, Staff | Record payment with overpayment guard, auto-marks paid on full settlement | ✅ 8 test cases |
+| `GET` | `/api/v1/payments` | Admin, Staff | Paginated global payments ledger with date filters (customer 403) | ✅ 3 test cases |
+| `GET` | `/api/v1/invoices/:id/payments` | Admin, Staff, Customer | List payments for specific invoice (customer scoped) | ✅ 2 test cases |
+| `GET` | `/api/v1/portal/invoices` | Customer | Customer self-service portal: list customer's own invoices | ✅ 1 test case |
 
 ---
 
@@ -261,6 +280,23 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
    - All financial math is conducted in integer minor units (paise/cents). Tax and percentage discounts round half-up using `(n + denominator / 2) / denominator`.
 10. **Invoice Preview Writes Nothing:**
     - `GET /api/v1/billing/preview` calculates deterministic future invoice values for admin/staff review without generating DB invoice records or altering discount `used_count`.
+11. **Invoice Lifecycle State Transitions:**
+    - `draft` -> `confirmed`: via `POST /invoices/:id/confirm`. Staff/Admin only.
+    - `draft` or `confirmed` with 0 payments -> `cancelled`: via `POST /invoices/:id/cancel`. The invoice record remains in the database with status `cancelled` and its billing period remains consumed (no deletion or reuse).
+    - `confirmed` -> `paid`: occurs ONLY through payments when accumulated payment amounts equal total. Never accessible via a manual status update endpoint.
+12. **Cancellation Guard with Recorded Payments:**
+    - Confirmed invoices with >= 1 recorded payment cannot be cancelled under any circumstance (returns 409 Conflict).
+13. **Resend Email Best-Effort Dispatch:**
+    - `POST /invoices/:id/send` requires `RESEND_API_KEY` and `MAIL_FROM`. When not configured, returns 503 Service Unavailable gracefully without crashing or returning 500. When configured, sends the email and records `sent_at`.
+14. **Print Invoice & Safe XSS Escaping:**
+    - `GET /invoices/:id/print` supports JSON and `?format=html`. In HTML mode, all customer inputs and item descriptions are strictly HTML-escaped using `escapeHtml()`, fully neutralizing `<script>` injection attacks.
+15. **Payment Settlement & Overpayment Guard:**
+    - Payments cannot exceed the remaining balance due on an invoice (rejected with 400).
+    - Zero or negative amounts are rejected.
+    - When remaining balance becomes 0.00, invoice status automatically updates to `paid` and `paid_at` is set.
+    - Marked `TEMPORARY - non-atomic, replace with a database RPC`.
+16. **N+1 Avoidance on Listings:**
+    - `GET /invoices` fetches all payments for the requested page using a single `payments.in('invoice_id', ids)` batch query.
 
 ---
 
@@ -279,6 +315,9 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | **Tax Rules** | `tax_rules` | `id, name, rate_percent, rate, description, is_active, created_at, updated_at` | None | Rate 0-100% max 2 decimals; soft-deactivate |
 | **Discount Rules** | `discount_rules` | `id, name, kind, type, value, scope, min_amount, min_quantity, valid_from, valid_until, max_uses, used_count, is_active, created_at, updated_at` | None | Aligned with Sanju `supabaseBillingRepository.cjs`; `used_count` unmodifiable |
 | **Discount Product Mappings** | `discount_product_mappings` | `id, discount_rule_id, product_id, created_at, updated_at` | None | Maps product-scoped discounts to products; queries match Sanju billing code |
+| **Invoices** | `invoices` | `id, subscription_id, customer_id, billing_period_start, billing_period_end, invoice_number, subtotal, discount_total, tax_total, total, status, due_date, paid_at, sent_at, created_at, updated_at` | None | Status ∈ `{draft, confirmed, paid, cancelled}`; unique invoice number |
+| **Invoice Lines** | `invoice_lines` | `id, invoice_id, product_id, description, quantity, unit_price, variant_adjustment, tax_rate_percent, base_amount, discount_amount, tax_amount, line_total, created_at, updated_at` | None | Line breakdown; price snapshots |
+| **Payments** | `payments` | `id, invoice_id, amount, payment_date, method, reference, note, created_at, updated_at` | None | Method ∈ `{cash, bank_transfer, upi, card, cheque, other}` |
 
 ---
 
@@ -316,7 +355,8 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 3. **Subscription Number Sequence:** Temporary random generation with 5 retries; replace with a PostgreSQL sequence once Harsha creates it.
 4. **Real Supabase DB Domain Tables Missing:**
    - Real smoke checks for domain tables skipped because Harsha has not yet migrated domain tables to live Supabase (`PGRST205: Could not find table in schema cache`), and `SMOKE_ADMIN_*` credentials are not configured.
-5. **Vitest Mocked Test Suite:** Automated unit/integration tests run via the fast in-memory mock harness (`tests/mocks/supabase.mock.js`) for CI determinism (202/202 pass).
+5. **Vitest Mocked Test Suite:** Automated unit/integration tests run via the fast in-memory mock harness (`tests/mocks/supabase.mock.js`) for CI determinism (252/252 pass across 15 test files).
+6. **Payment Recording Fallback:** Currently performs application-level validation and multi-query settlement (`TEMPORARY - non-atomic, replace with a database RPC`). Requires Harsha's database RPC for production concurrency guarantees.
 
 ---
 
@@ -330,9 +370,10 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | 4 | **`quotation_templates` & lines migrations** | Missing | Deploy DDL with foreign keys to `plans` and `products`. |
 | 5 | **`subscriptions` & `subscription_lines` migrations** | Missing | Deploy DDL with `is_paused` boolean, `variant_adjustment`, `tax_rate_percent`, and unique `subscription_number`. |
 | 6 | **`tax_rules`, `discount_rules`, `discount_product_mappings` migrations** | Missing | Deploy DDL matching schema in reconciliation table. |
-| 7 | **Transactionally increment `used_count` in billing RPC** | Missing | Inside `persist_due_billing_invoice` RPC, atomically increment `discount_rules.used_count` for applied discounts. |
-| 8 | **Postgres sequence for subscription numbers** | Missing | Provide sequence or RPC for sequential `SUB-YYYYMM-XXXX` IDs. |
-| 9 | **UNIQUE(subscription_id, billing_period_start)** | Missing | Needed for billing idempotency. |
+| 7 | **`invoices` & `invoice_lines` migrations** | Missing | Deploy DDL with status check constraint (`draft, confirmed, paid, cancelled`) and unique `(subscription_id, billing_period_start)`. |
+| 8 | **`payments` migration** | Missing | Deploy DDL with payment methods enum and invoice foreign key. |
+| 9 | **Atomic Payment Settlement RPC (`record_payment_atomic`)** | Missing | Provide database RPC to atomically check balance, insert payment, and update invoice status. |
+| 10 | **Postgres sequence for subscription & invoice numbers** | Missing | Provide sequences or RPC for sequential IDs. |
 
 ---
 
@@ -347,41 +388,49 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 
 ## Needed from Ravi
 
-1. **Taxes UI:** Admin CRUD for tax rules (`GET/POST/PATCH /api/v1/taxes`). Staff read-only.
-2. **Discounts UI:** Admin CRUD for discount rules (`GET/POST/PATCH /api/v1/discounts`) with scope switcher (`subscription` vs `product`). Staff read-only.
-3. **Billing Preview:** Render next invoice preview modal/tab using `GET /api/v1/billing/preview?subscription_id=...` showing subtotal, discount, tax breakdown, and total.
+1. **Invoices UI:** Invoice management table with status filtering (`draft`, `confirmed`, `paid`, `cancelled`), confirm/cancel action buttons, print view trigger (`?format=html`), and send trigger.
+2. **Customer Portal Invoices:** Customer-facing invoice view at `/portal/invoices` showing individual bills with paid/balance amounts.
+3. **Payment Modal:** Staff payment recording modal capturing amount, method, payment date, reference, and note.
+4. **Taxes & Discounts UI:** Admin CRUD for tax rules (`/api/v1/taxes`) and discount rules (`/api/v1/discounts`).
 
 ---
 
 ## Next Tasks
 
-- **Phase 5:** Invoices & actions (confirm, cancel, send, print), atomic billing persistence.
-- **Phase 6:** Payments & finance reporting dashboard.
+- **Phase 6:** Finance reports & management dashboard (`/reports/summary`, `/reports/overdue-invoices`, `/reports/payments`).
 
 ---
 
-## Ready-to-Paste Pull Request (Whole Branch: Phases 2-4)
+## Ready-to-Paste Pull Request (Whole Branch: Phases 2-5)
 
 ### Title:
-`feat(backend): complete phases 2-4 (products, plans, subscriptions, lifecycle, taxes, discounts, and billing preview)`
+`feat(backend): complete phases 2-5 (products, plans, subscriptions, lifecycle, taxes, discounts, invoices, print, email, and payment ledger)`
 
 ### Description:
 ```markdown
 ## Summary
-This PR delivers the complete backend foundation for Phases 2, 3, and 4 on `feature/amarnath-products-plans`:
+This PR delivers the complete backend foundation for Phases 2, 3, 4, and 5 on `feature/amarnath-products-plans`:
 
-- **Phase 2:** Products, product variants, recurring plans with availability & policy flags, pure money utility (`money.js`), pricing service.
-- **Phase 3:** Quotation templates, subscriptions with automatic sequence numbers (`SUB-YYYYMM-XXXXXX`), customer ownership isolation, full lifecycle transitions (`draft` -> `quotation` -> `confirmed` -> `active` -> `paused` / `closed`), plan-expired auto-close job, pure UTC date arithmetic (`dates.js`).
-- **Phase 4:**
+- **Phase 2 (Products & Plans):** Products, variants, recurring plans with availability & policy flags, pure money utility (`money.js`), pricing service.
+- **Phase 3 (Subscriptions & Lifecycle):** Quotation templates, subscriptions with automatic sequence numbers (`SUB-YYYYMM-XXXXXX`), customer isolation, full lifecycle transitions (`draft` -> `quotation` -> `confirmed` -> `active` -> `paused` / `closed`), plan-expired auto-close job, pure UTC date arithmetic (`dates.js`).
+- **Phase 4 (Taxes & Discounts):**
   - Reconciled subscription line pricing with billing engine: stored `unit_price` as base price and `variant_adjustment` separately to eliminate double-counting; snapshotted `tax_rate_percent` from `tax_rules`.
   - Pure integer tax service (`tax.service.js`) with half-up rounding.
-  - Tax rules CRUD (`/api/v1/taxes`) with role-based access control (Admin write, Staff read-only, Customer 403).
-  - Pure discount service (`discount.service.js`) with date/threshold/scope eligibility, largest-saving selection (no stacking), and deterministic exact-cent line allocation.
-  - Discount rules CRUD (`/api/v1/discounts`) with product and subscription scopes and tamper-proof `used_count`.
+  - Tax rules CRUD (`/api/v1/taxes`) with role-based access control.
+  - Pure discount service (`discount.service.js`) with date/threshold/scope eligibility, largest-saving selection (no stacking), and deterministic line allocation.
+  - Discount rules CRUD (`/api/v1/discounts`) with tamper-proof `used_count`.
   - Deterministic invoice preview (`GET /api/v1/billing/preview`) with 100% mathematical parity against Sanju's `calculateInvoice`.
+- **Phase 5 (Invoices & Payment Ledger):**
+  - Pure invoice financials service (`invoice.service.js`): computed status (`draft`, `confirmed`, `paid`, `cancelled`, `overdue`), balance due, and paid amount without floating point math.
+  - Invoice repositories (`invoices.repository.js`, `invoiceLines.repository.js`, `payments.repository.js`) with batch payment query (`payments.in('invoice_id', ids)`) to prevent N+1 queries.
+  - Invoice endpoints: `GET /api/v1/invoices`, `GET /api/v1/invoices/:id`, `POST /api/v1/invoices/:id/confirm`, `POST /api/v1/invoices/:id/cancel` (protected against cancelling invoices with recorded payments).
+  - Printable invoice view: `GET /api/v1/invoices/:id/print` (JSON default, `?format=html` with complete styling and rigorous HTML escaping preventing XSS).
+  - Best-effort email dispatch: `POST /api/v1/invoices/:id/send` via Resend HTTP API (returns 503 when unconfigured).
+  - Payment ledger: `POST /api/v1/invoices/:id/payments` with overpayment guard, automatic transition from `confirmed` to `paid` when balance settles in full, and `paid_at` timestamp.
+  - Payment queries: `GET /api/v1/payments` (admin/staff only), `GET /api/v1/invoices/:id/payments` (customer scoped), and `GET /api/v1/portal/invoices`.
 
 ## Verification & Test Results
-- **Test Suite:** 12 test files, 202 tests passed, 0 failures (1.37s execution).
+- **Test Suite:** 15 test files, 252 tests passed, 0 failures (1.50s execution).
 - **Parity Verified:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
-- **Security:** Standard `{ success, data, message, errors }` envelope, zero leaks of database error messages or stack traces.
+- **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, XSS protection verified via automated tests.
 ```
