@@ -36,6 +36,11 @@ ROLE & TASK:
 You are Harsha, Database Engineer for the Brightloop Subscription Management System. 
 Create the SQL migrations and Supabase configuration files in `database/migrations/`.
 
+SUPABASE PROJECT REFERENCE:
+- Project ID / Ref: `bdmwwpfglltcpagwblmk`
+- Region: `ap-southeast-2`
+- URL: `https://bdmwwpfglltcpagwblmk.supabase.co`
+
 1. IMMEDIATE MIGRATION: `001_profiles.sql`
 Create the profiles table linked to Supabase auth.users:
 ```sql
@@ -120,6 +125,10 @@ ROLE & TASK:
 You are Ravi, Frontend Engineer for the Brightloop Subscription Management System.
 The backend authentication and foundation APIs are fully built and tested at base path `/api/v1`.
 CORS is configured for `http://localhost:5173`.
+
+SUPABASE CLIENT CONNECTION (Frontend):
+- VITE_SUPABASE_URL: `https://bdmwwpfglltcpagwblmk.supabase.co`
+- VITE_SUPABASE_ANON_KEY: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbXd3cGZnbGx0Y3BhZ3dibG1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTg1MDIsImV4cCI6MjEwODkzNDUwMn0.0H2Wufn7RdeXra5YcIWEAuUESBKy2OsIx5qv5cR5GR8`
 
 INTEGRATION CONTRACT DETAILS:
 
