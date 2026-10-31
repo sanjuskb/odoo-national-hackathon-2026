@@ -10,7 +10,7 @@ Exposes clean HTTP JSON endpoints for:
 
 from typing import Any, Dict, Optional
 from fastapi import FastAPI, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from ai.src.assistant.chatbot import CustomerAssistantOrchestrator
 from ai.src.assistant.models import CustomerChatRequest
@@ -25,6 +25,7 @@ from ai.src.inference.predictor import Predictor
 from ai.src.integrations.backend_client import MockBackendClient
 from ai.src.invoice.invoice_explainer import InvoiceExplanationService
 from ai.src.invoice.models import InvoiceExplanationRequest
+from ai.src.integrations.demo_page import DEMO_HTML
 from ai.src.models.registry import get_model_registry
 from ai.src.providers.gemini_provider import GeminiProvider
 from ai.src.providers.mock_gemini_provider import MockGeminiProvider
@@ -166,6 +167,12 @@ def create_app() -> FastAPI:
                 detail={"code": "CALL_NOT_FOUND", "message": f"Call {call_id} not found"},
             )
         return record.model_dump()
+
+    @app.get("/demo", response_class=HTMLResponse)
+    @app.get("/", response_class=HTMLResponse)
+    def demo_dashboard() -> str:
+        """Interactive 45-second evaluator demonstration dashboard."""
+        return DEMO_HTML
 
     # Legacy routes for backwards compatibility
     @app.get("/metadata", status_code=status.HTTP_200_OK)
