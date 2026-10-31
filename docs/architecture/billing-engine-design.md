@@ -6,4 +6,6 @@ Official PDF p.3: generate invoices when subscriptions are due; do not duplicate
 
 Test: duplicate run, concurrent workers, failed transaction, missed period, all four billing frequencies, discount expiration/cap, payment reconciliation. Scheduler must be verified. Protected manual “Run due billing” is a demo fallback, not automatic unattended billing.
 
-**Decisions not specified in PS:** currency, rounding, tax inclusive/exclusive, stacking/ordering of discounts, partial payments, timezone and month-end policy. Owners Amarnadh + Harsha; team lead approves.
+**Team ownership:** Sanju implements deterministic invoice calculation and billing-period orchestration; Amarnadh integrates the protected Express API and owns the surrounding backend; Harsha owns transactional persistence, RLS and database uniqueness.
+
+**Unapproved policy choices:** currency, rounding, inclusive/exclusive tax, stacking/ordering of discounts, partial payments, timezone and month-end. Do not claim the official PS specifies these policies.

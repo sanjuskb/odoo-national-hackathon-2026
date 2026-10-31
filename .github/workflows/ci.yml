@@ -73,7 +73,6 @@ jobs:
           else
             echo "::notice::Sanju billing module not yet integrated; billing tests not run"
           fi
-
   pr-branch-flow:
     name: Branch workflow gate
     if: github.event_name == 'pull_request'

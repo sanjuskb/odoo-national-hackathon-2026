@@ -9,10 +9,12 @@ flowchart TD
  F -->|Bearer token, JSON| API[Express /api/v1 - Amarnadh]
  API --> CHECK[Identity, role, ownership, input validation]
  CHECK --> CORE[Products, Plans, Quotations, Subscriptions]
- CHECK --> BILL[Idempotent Billing, Discounts, Payments]
+ CHECK --> BILL[Sanju: Deterministic Invoice and Billing]
+ CHECK --> PAY[Amarnadh: Payment and Reporting APIs]
  CHECK --> REP[Finance Reports]
  CORE --> DB[(Supabase PostgreSQL - Harsha)]
  BILL --> DB
+ PAY --> DB
  REP --> DB
  JOB[Verified scheduled job or protected manual trigger] --> BILL
 ```
