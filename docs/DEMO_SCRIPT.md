@@ -1,26 +1,16 @@
-# Demonstration Script & Pitch Guide
+# Five-minute evaluator demonstration — actual event schedule
 
-## 1. Demo Constraints
-- **Total Presentation Time:** Expected 5-8 minutes (confirm with organizers).
-- **Q&A Window:** 2-3 minutes.
-- **Presenter:** Ravi (`donnyravi-alt`) with technical support from Sanju, Amarnadh, and Harsha.
+> **Official timing from team event brief:** coding ends 5:00 PM, five-minute video submission by 5:30 PM (31 October 2026). Previous 5–8 minute draft was an unverified placeholder.
 
-## 2. Walkthrough Structure
-1. **The Hook (Minute 0 - 1):**
-   - Problem context as announced by Odoo.
-   - Core pain points addressed.
-2. **The Solution & Value Proposition (Minute 1 - 2):**
-   - System overview and architectural approach.
-3. **Live Demonstration (Minute 2 - 5):**
-   - Step 1: User authentication / onboarding.
-   - Step 2: Primary workflow execution (core feature showcase).
-   - Step 3: Handling complex edge cases or automated business actions.
-   - Step 4: Real-time status / reporting / dashboard view.
-4. **Technical Innovations & Scalability (Minute 5 - 6):**
-   - Database integrity, API robustness, UX responsiveness.
-5. **Conclusion & Jury Q&A (Minute 6+):**
-   - Summary of impact and future roadmap.
+**Canonical detailed storyboard:** [demo/five-minute-demo-blueprint.md](demo/five-minute-demo-blueprint.md). **Checklist:** [quality/demo-acceptance-checklist.md](quality/demo-acceptance-checklist.md).
 
-## 3. Contingency Plan
-- Pre-record a 1080p walkthrough video of the core demo flow as backup in case of network issues.
-- Seed database with deterministic, realistic demo data before jury presentation.
+| Time | Topic |
+|---|---|
+| 0:00–0:30 | Brightloop's missed renewals, spreadsheets and invoice/revenue problems |
+| 0:30–1:05 | Unified solution and roles |
+| 1:05–1:45 | Actual architecture: frontend, Express, Supabase, billing integrity |
+| 1:45–3:35 | Real end-to-end product demo |
+| 3:35–4:20 | Auth isolation, repeat-billing idempotency, data and measured performance |
+| 4:20–5:00 | Outcome and honest limitations |
+
+Sanju coordinates the video; Ravi explains system/frontend architecture; Amarnadh explains backend logic if needed; Harsha explains persistence. Record actual running features; no fabricated benchmark or mock data presented as real. No public guarantee of a separate Q&A window was included in the supplied PS.

@@ -68,8 +68,11 @@ lerna-debug.log*
 .nuxt/
 .output/
 
-# Database dumps and local storage
-*.sql
+# Database dumps and local storage (SQL migrations must be trackable)
+*.backup.sql
+*.dump.sql
+database/backups/
+database/dumps/
 *.sqlite
 *.sqlite3
 *.db

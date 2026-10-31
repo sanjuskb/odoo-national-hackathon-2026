@@ -1,20 +1,9 @@
-# Test Plan & Quality Assurance Strategy
+# Verification plan — Subscription Management System
 
-## 1. Quality Objectives
-- Ensure critical user journeys and business logic operate reliably during live evaluation.
-- Eliminate edge cases that could cause application crash or unhandled 500 errors.
-- Validate API contracts between frontend and backend.
+The official PS requires under-two-second page responses with thousands of subscriptions; registration rules; customer isolation; invoicing without skips or duplicates; discounts, payments and reporting.
 
-## 2. Test Pyramid
-1. **Unit Tests (`tests/unit/`):**
-   - Business calculation logic, data validation schemas, utility functions.
-2. **Integration Tests (`tests/integration/`):**
-   - API endpoints, database queries, authentication & authorization flows.
-3. **End-to-End & Demo Smoke Tests (`tests/e2e/`):**
-   - Primary user workflow walk-throughs to verify UI and backend connectivity.
+**Canonical test specification:** [quality/verification-plan.md](quality/verification-plan.md), [acceptance criteria](requirements/acceptance-criteria.md), and [demo acceptance checklist](quality/demo-acceptance-checklist.md).
 
-## 3. Pre-PR Checklist
-Before submitting a PR to `develop`:
-- [ ] Unit tests execute with 100% pass rate.
-- [ ] Database migrations run cleanly up and down.
-- [ ] No regression in existing endpoints or UI components.
+The GitHub Actions [integration quality gate](../.github/workflows/ci.yml) checks repository structure and (once app package scripts exist) frontend/backend build/lint/test. A green documentation-only CI run does NOT verify the actual application.
+
+Critical real integration checks: two-customer account isolation; admin-only staff creation; variant +560 pricing; plan options; subscription state transitions; invoice period unique constraint; retry/concurrent billing; discount caps; payment reconciliation; page performance with thousands of records. Record observed outcomes; do not assert success without running the test.

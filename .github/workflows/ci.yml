@@ -1,0 +1,58 @@
+name: Integration quality gate
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-integrity:
+    name: Repository integrity and secret-file guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/verify-repository.mjs
+
+  module-checks:
+    name: ${{ matrix.module }} install / lint / build / test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check module when implemented
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          module="${{ matrix.module }}"
+          if [ ! -f "$module/package.json" ]; then
+            echo "::notice::$module has not been scaffolded yet; module checks skipped"
+            exit 0
+          fi
+          if [ ! -f "$module/package-lock.json" ]; then
+            echo "::error::$module/package.json exists without a lockfile; run npm install and commit package-lock.json"
+            exit 1
+          fi
+          cd "$module"
+          npm ci --no-audit --no-fund
+          npm run --if-present lint
+          npm run --if-present build
+          npm run --if-present test
