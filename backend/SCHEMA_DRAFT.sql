@@ -1,9 +1,8 @@
 -- ==============================================================================
--- BRIGHTLOOP SUBSCRIPTION MANAGEMENT SYSTEM — BACKEND SCHEMA DRAFT
+-- SUPERSEDED by Harsha's migrations (see SCHEMA_REALITY.md). Do not use.
+-- BRIGHTLOOP SUBSCRIPTION MANAGEMENT SYSTEM — BACKEND SCHEMA DRAFT (HISTORICAL)
 -- Target: PostgreSQL 15+ / Supabase
--- Status: UNREVIEWED DRAFT FOR HARSHA REVIEW ONLY — NOT APPLIED TO ANY DATABASE
--- Submitted by: Amarnath (Backend Engineer)
--- Reference: backend/PROGRESS.md, backend/REPORTS_SQL_PROPOSAL.md
+-- Status: SUPERSEDED — Canonical schema is database/schema/01_brightloop_schema.sql
 -- ==============================================================================
 
 -- ==============================================================================
