@@ -1,30 +1,13 @@
-# Requirements Specification
+# Requirements — Subscription Management System
 
-> **NOTE:** The official problem statement has not yet been released. This document outlines the template structure to be populated immediately following problem announcement.
+> **Official PS released 31 October 2026.** This was a pre-hackathon placeholder and is no longer the authoritative requirements register.
 
----
+**Read instead:**
+- [Original official statement, by PDF page](official/problem-statement.md)
+- [Traceable requirements with IDs and owners](requirements/requirements.md)
+- [P0 acceptance criteria](requirements/acceptance-criteria.md)
+- [Team work board](team/task-board.md)
 
-## 1. Problem Statement Summary
-- *Title:* Pending official announcement
-- *Domain / Industry:* TBD
-- *Target Users / Personas:* TBD
+The official problem covers role-aware registration and password reset, staff provisioning, products and variants, four plan billing frequencies, quotations, subscription lifecycle, automatic tax/discount invoices, payments, reporting and customer self-service. Its explicit performance target is **under two seconds for every page with thousands of subscriptions** — the earlier generic 200ms template was not from the released problem statement.
 
-## 2. Functional Requirements (FR)
-- [ ] **FR-01: Core System Capabilities** — TBD
-- [ ] **FR-02: User Workflows & Journeys** — TBD
-- [ ] **FR-03: Business Logic & Processing Rules** — TBD
-- [ ] **FR-04: Integration & External Services** — TBD
-
-## 3. Non-Functional Requirements (NFR)
-- **Performance & Latency:** Target response times for critical paths (< 200ms).
-- **Scalability & Concurrency:** Handling concurrent users during live evaluation.
-- **Security & Integrity:** Input validation, authentication, authorization, secret protection.
-- **Usability & Responsiveness:** Intuitive UI across desktop and presentation viewports.
-- **Maintainability:** Modular separation of concerns across frontend, backend, and data layers.
-
-## 4. Deliverables & Hackathon Milestones
-1. Milestone 1: Requirements sign-off and architecture alignment.
-2. Milestone 2: Core backend APIs and database schema implementation.
-3. Milestone 3: Frontend UI component assembly and API binding.
-4. Milestone 4: End-to-end integration and automated testing.
-5. Milestone 5: Demo rehearsal and final release tag on `main`.
+No acceptance criterion is considered verified until a test/demo executes successfully. Proposed technical approaches in other docs are *not* official competition requirements.
