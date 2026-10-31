@@ -651,9 +651,10 @@ Response (200):
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-024 | GET | /reports/summary | Admin, Staff | — (query: date_from, date_to) | `{ active_subscriptions, total_revenue, outstanding_amount, overdue_count }` | Dates optional; defaults to current month | 401, 403 | subscriptions, invoices, payments | Proposed |
-| FR-024 | GET | /reports/overdue-invoices | Admin, Staff | — (query: page, page_size, status) | `{ items: [Invoice], pagination }` | Filters on due_date < now AND status != paid | 401, 403 | invoices | Proposed |
-| FR-024 | GET | /reports/payments | Admin, Staff | — (query: page, page_size, date_from, date_to) | `{ items: [Payment], pagination }` | — | 401, 403 | payments | Proposed |
+| FR-024 | GET | /reports/summary | Admin, Staff | — (query: from, to, customer_id, plan_id) | `{ active_subscriptions, paused_subscriptions, revenue_invoiced, revenue_collected, outstanding_balance, overdue_count, overdue_amount, as_of, filters }` | from <= to; money strings 2 decimals | 400, 401, 403 | subscriptions, invoices, payments | Implemented |
+| FR-024 | GET | /reports/overdue-invoices | Admin, Staff | — (query: page, limit, customer_id, plan_id, from, to) | `{ items: [OverdueInvoice], pagination }` | Sorted days_overdue DESC; due today not overdue | 400, 401, 403 | invoices, payments | Implemented |
+| FR-024 | GET | /reports/payments | Admin, Staff | — (query: page, limit, from, to, method, invoice_id, customer_id) | `{ items: [Payment], totals: { count, amount }, pagination }` | from <= to | 400, 401, 403 | payments | Implemented |
+| FR-024 | GET | /reports/subscriptions | Admin, Staff | — (query: customer_id, plan_id) | `{ counts: { active, paused, draft, quotation, confirmed, closed } }` | — | 401, 403 | subscriptions | Implemented |
 
 ### CUSTOMER PORTAL (FR-025, SEC-002)
 

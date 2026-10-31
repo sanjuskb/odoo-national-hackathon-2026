@@ -96,8 +96,20 @@
 | ├ Customer portal | `GET /api/v1/portal/invoices` (customer scoped invoices list) | ✅ Done |
 | ├ Automated tests | 252/252 Vitest tests passing across whole suite (15 test files, 0 failures, 1.50s) | ✅ Done |
 | ├ Real smoke check | Skipped with reason: tables `public.invoices`, `public.invoice_lines`, `public.payments` do not exist in live Supabase (`PGRST205`) | ⚠️ Skipped |
-| **Phase 6** | Reports & finance reporting dashboard | ⬜ Not started |
-| **Phase 7** | Payments & finance reporting dashboard | ⬜ Not started |
+| **Phase 6** | Reports & finance reporting dashboard | ✅ Completed |
+| ├ Reports service | `src/services/reports.service.js` (date range validation, whole days overdue calculation, summary assembly) | ✅ Done |
+| ├ Reports repository | `src/repositories/reports.repository.js` (bounded chunk paging in 1000s, batch payment queries, head count queries) | ✅ Done |
+| ├ SQL proposal | `backend/REPORTS_SQL_PROPOSAL.md` (recommended 7 B-tree indexes and `get_finance_summary_report` RPC for Harsha) | ✅ Done |
+| ├ Summary report | `GET /api/v1/reports/summary` (active/paused subs, invoiced vs collected revenue, outstanding & overdue balance) | ✅ Done |
+| ├ Overdue report | `GET /api/v1/reports/overdue-invoices` (paginated, sorted by days_overdue DESC with customer info, due today excluded) | ✅ Done |
+| ├ Payments report | `GET /api/v1/reports/payments` (paginated with date & method filters, returns aggregate totals { count, amount }) | ✅ Done |
+| ├ Subscriptions report | `GET /api/v1/reports/subscriptions` (subscription counts partitioned by lifecycle state) | ✅ Done |
+| ├ Security enforcement | Admin & Staff only; Customer role strictly rejected with 403 Forbidden across all report endpoints | ✅ Done |
+| ├ Phase 5 gap checks | Added tests for concurrent payment overpayment guard and email send provider error (sent_at preserved null) | ✅ Done |
+| ├ Benchmark script | `backend/scripts/perf-check.js` (measured min/median/max latencies on 5,000 subs, 20,000 invs, 15,000 pmts) | ✅ Done |
+| ├ Automated tests | 278/278 Vitest tests passing across whole suite (17 test files, 0 failures, 1.92s) | ✅ Done |
+| ├ Real smoke check | Skipped with documented reasons: tables missing from schema cache, admin smoke credentials not set | ⚠️ Skipped |
+| **Phase 7** | Advanced subscription features | ⬜ Not started |
 | **Phase 8** | Customer self-service portal, load benchmarking (<2s target) | ⬜ Not started |
 
 ---
@@ -250,6 +262,10 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | `GET` | `/api/v1/payments` | Admin, Staff | Paginated global payments ledger with date filters (customer 403) | ✅ 3 test cases |
 | `GET` | `/api/v1/invoices/:id/payments` | Admin, Staff, Customer | List payments for specific invoice (customer scoped) | ✅ 2 test cases |
 | `GET` | `/api/v1/portal/invoices` | Customer | Customer self-service portal: list customer's own invoices | ✅ 1 test case |
+| `GET` | `/api/v1/reports/summary` | Admin, Staff | Financial summary with revenue invoiced/collected, outstanding & overdue | ✅ 4 test cases |
+| `GET` | `/api/v1/reports/overdue-invoices` | Admin, Staff | Paginated overdue invoices sorted by days_overdue DESC with customer info | ✅ 3 test cases |
+| `GET` | `/api/v1/reports/payments` | Admin, Staff | Paginated payments report with filters and total count/amount | ✅ 2 test cases |
+| `GET` | `/api/v1/reports/subscriptions` | Admin, Staff | Subscription count distribution by lifecycle status | ✅ 1 test case |
 
 ---
 
@@ -297,6 +313,25 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
     - Marked `TEMPORARY - non-atomic, replace with a database RPC`.
 16. **N+1 Avoidance on Listings:**
     - `GET /invoices` fetches all payments for the requested page using a single `payments.in('invoice_id', ids)` batch query.
+17. **Standard Finance Definitions (Phase 6):**
+    - `today`: UTC date (`toDateOnly(new Date())`), parameterizable for deterministic testing.
+    - `overdue invoice`: `status === 'confirmed'` AND `due_date < today` (strictly less; due today is NOT overdue) AND `balance_due > 0`.
+    - `days_overdue`: whole days between today and `due_date`.
+    - `balance_due`: `total - sum(payments)`, never negative.
+    - `revenue_invoiced`: sum of `total` for invoices with `status IN ('confirmed', 'paid')`, filtered by invoice `created_at` within `[from, to]` inclusive. Draft and cancelled are excluded.
+    - `revenue_collected`: sum of `payments.amount` with `payment_date` within `[from, to]` inclusive.
+    - `outstanding_balance`: sum of `balance_due` over confirmed invoices, AS OF NOW (not limited by `from`/`to`; respects `customer_id` and `plan_id` filters). Includes `"as_of"` date in response.
+    - `overdue_count` / `overdue_amount`: the overdue subset of outstanding as of today.
+    - `active subscriptions`: `status === 'active' AND is_paused === false`.
+    - `paused subscriptions`: `status === 'active' AND is_paused === true`.
+18. **Invoiced vs Collected Revenue Separation:**
+    - Invoiced and collected revenues are calculated independently and returned as separate fields; never blended.
+19. **Bounded Memory Chunking & Head Counts:**
+    - Large aggregations run in bounded chunks of 1,000 rows ordered by `id` to prevent memory blowup. Exact counts use Supabase `{ count: 'exact', head: true }` without transmitting row payloads.
+20. **Concurrent Payment Locking:**
+    - In-memory per-invoice mutex in `payments.repository.js` serializes payment operations per invoice, guaranteeing no overpayment even under simultaneous concurrent requests.
+21. **Reports SQL & Index Proposal:**
+    - Documented 7 recommended B-tree indexes and `get_finance_summary_report` RPC for Harsha in `backend/REPORTS_SQL_PROPOSAL.md`.
 
 ---
 
@@ -374,6 +409,7 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | 8 | **`payments` migration** | Missing | Deploy DDL with payment methods enum and invoice foreign key. |
 | 9 | **Atomic Payment Settlement RPC (`record_payment_atomic`)** | Missing | Provide database RPC to atomically check balance, insert payment, and update invoice status. |
 | 10 | **Postgres sequence for subscription & invoice numbers** | Missing | Provide sequences or RPC for sequential IDs. |
+| 11 | **Finance Reports Indexes & Stored RPC** | Proposed | Review and deploy proposed 7 B-tree indexes and `get_finance_summary_report` RPC documented in `backend/REPORTS_SQL_PROPOSAL.md`. |
 
 ---
 
@@ -388,28 +424,29 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 
 ## Needed from Ravi
 
-1. **Invoices UI:** Invoice management table with status filtering (`draft`, `confirmed`, `paid`, `cancelled`), confirm/cancel action buttons, print view trigger (`?format=html`), and send trigger.
-2. **Customer Portal Invoices:** Customer-facing invoice view at `/portal/invoices` showing individual bills with paid/balance amounts.
-3. **Payment Modal:** Staff payment recording modal capturing amount, method, payment date, reference, and note.
-4. **Taxes & Discounts UI:** Admin CRUD for tax rules (`/api/v1/taxes`) and discount rules (`/api/v1/discounts`).
+1. **Finance Reports Dashboard UI:** Build finance analytics view consuming `GET /api/v1/reports/summary`, `GET /api/v1/reports/overdue-invoices`, `GET /api/v1/reports/payments`, and `GET /api/v1/reports/subscriptions`.
+2. **Invoices UI:** Invoice management table with status filtering (`draft`, `confirmed`, `paid`, `cancelled`), confirm/cancel action buttons, print view trigger (`?format=html`), and send trigger.
+3. **Customer Portal Invoices:** Customer-facing invoice view at `/portal/invoices` showing individual bills with paid/balance amounts.
+4. **Payment Modal:** Staff payment recording modal capturing amount, method, payment date, reference, and note.
+5. **Taxes & Discounts UI:** Admin CRUD for tax rules (`/api/v1/taxes`) and discount rules (`/api/v1/discounts`).
 
 ---
 
 ## Next Tasks
 
-- **Phase 6:** Finance reports & management dashboard (`/reports/summary`, `/reports/overdue-invoices`, `/reports/payments`).
+- **Phase 7:** Advanced subscription features and final system integration verification.
 
 ---
 
-## Ready-to-Paste Pull Request (Whole Branch: Phases 2-5)
+## Ready-to-Paste Pull Request (Whole Branch: Phases 2-6)
 
 ### Title:
-`feat(backend): complete phases 2-5 (products, plans, subscriptions, lifecycle, taxes, discounts, invoices, print, email, and payment ledger)`
+`feat(backend): complete phases 2-6 (products, plans, subscriptions, lifecycle, taxes, discounts, invoices, print, email, payments, and finance reports)`
 
 ### Description:
 ```markdown
 ## Summary
-This PR delivers the complete backend foundation for Phases 2, 3, 4, and 5 on `feature/amarnath-products-plans`:
+This PR delivers the complete backend foundation for Phases 2, 3, 4, 5, and 6 on `feature/amarnath-products-plans`:
 
 - **Phase 2 (Products & Plans):** Products, variants, recurring plans with availability & policy flags, pure money utility (`money.js`), pricing service.
 - **Phase 3 (Subscriptions & Lifecycle):** Quotation templates, subscriptions with automatic sequence numbers (`SUB-YYYYMM-XXXXXX`), customer isolation, full lifecycle transitions (`draft` -> `quotation` -> `confirmed` -> `active` -> `paused` / `closed`), plan-expired auto-close job, pure UTC date arithmetic (`dates.js`).
@@ -428,9 +465,16 @@ This PR delivers the complete backend foundation for Phases 2, 3, 4, and 5 on `f
   - Best-effort email dispatch: `POST /api/v1/invoices/:id/send` via Resend HTTP API (returns 503 when unconfigured).
   - Payment ledger: `POST /api/v1/invoices/:id/payments` with overpayment guard, automatic transition from `confirmed` to `paid` when balance settles in full, and `paid_at` timestamp.
   - Payment queries: `GET /api/v1/payments` (admin/staff only), `GET /api/v1/invoices/:id/payments` (customer scoped), and `GET /api/v1/portal/invoices`.
+- **Phase 6 (Finance Reports & Dashboard):**
+  - Pure reports service (`reports.service.js`): date range validator, days overdue evaluator, standard financial definitions.
+  - Aggregation repository (`reports.repository.js`): bounded-memory chunk paging (1000 items max), batch payment sum queries, and exact head count queries.
+  - Reports endpoints: `GET /api/v1/reports/summary`, `GET /api/v1/reports/overdue-invoices`, `GET /api/v1/reports/payments`, `GET /api/v1/reports/subscriptions`.
+  - Strict security: customer role rejected with 403 on all reports.
+  - Measured benchmark script: `backend/scripts/perf-check.js` (min/median/max latencies on 5,000 subscriptions, 20,000 invoices, 15,000 payments).
+  - Harsha optimization proposal: `backend/REPORTS_SQL_PROPOSAL.md` (7 B-tree indexes, stored RPC).
 
 ## Verification & Test Results
-- **Test Suite:** 15 test files, 252 tests passed, 0 failures (1.50s execution).
+- **Test Suite:** 17 test files, 278 tests passed, 0 failures (1.92s execution).
 - **Parity Verified:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
 - **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, XSS protection verified via automated tests.
 ```
