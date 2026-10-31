@@ -6,9 +6,9 @@
 - `main`: verified stable release; do **not** code directly here.
 - `develop`: shared integration; merge small reviewed PRs only.
 - `feature/ravi-frontend` (or Ravi's active scoped branch): UI and frontend API client.
-- `feature/amarnath-backend`: Express, business rules and billing APIs.
-- `feature/harsha-supabase-setup`: schema, Supabase integration and RLS; contains Harsha's work and must not be reset or overwritten.
-- `feature/sanju-integration`: integration, optional justified AI and demo assets.
+- eature/amarnath-backend: Express backend APIs, business rules, and integration of Sanju's deterministic invoice-generation service.
+- eature/harsha-supabase-setup: schema, Supabase integration, uniqueness constraints and RLS; contains Harsha's work and must not be reset or overwritten.
+- eature/sanju-integration: primary owner of deterministic invoice-generation service and billing-period orchestration, AI assistant/voice innovation, integration and demo assets.
 - `chore/problem-statement-baseline`: previously merged documentation branch; can be deleted later, but not an error.
 
 **GitHub's "Active" tab groups recently updated branches. It is NOT a second layer of Git.** Behind/ahead on the Branches page normally compares to default `main`; for feature sync, compare specifically with `develop`.
