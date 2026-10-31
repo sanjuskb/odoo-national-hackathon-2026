@@ -266,7 +266,8 @@ describe('Phase 3 Quotation Templates & Subscriptions Test Suite (Supabase Clien
       expect(sub.subtotal).toBe('4680.00'); // 3 x 1560.00 = 4680.00 exact!
 
       const line = sub.lines[0];
-      expect(line.unit_price).toBe('1560.00'); // Client price 9999.99 was ignored
+      expect(line.unit_price).toBe('1000.00'); // Base price stored separately from variant
+      expect(line.variant_adjustment).toBe('560.00'); // Variant adjustment stored separately to prevent double counting in billing
       expect(line.amount).toBe('4680.00');
     });
 
@@ -336,7 +337,8 @@ describe('Phase 3 Quotation Templates & Subscriptions Test Suite (Supabase Clien
       expect(sub.plan_id).toBe(activePlan.id);
       expect(sub.template_id).toBe(template.id);
       expect(sub.lines.length).toBe(1);
-      expect(sub.lines[0].unit_price).toBe('1560.00');
+      expect(sub.lines[0].unit_price).toBe('1000.00');
+      expect(sub.lines[0].variant_adjustment).toBe('560.00');
       expect(sub.lines[0].amount).toBe('3120.00'); // 2 x 1560.00 = 3120.00
       expect(sub.valid_until).toBe(addDays(toDateOnly(new Date()), 15));
     });

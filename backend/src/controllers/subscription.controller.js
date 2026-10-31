@@ -7,6 +7,7 @@ const quotationTemplatesRepo = require('../repositories/quotationTemplates.repos
 const plansRepo = require('../repositories/plans.repository');
 const productsRepo = require('../repositories/products.repository');
 const variantsRepo = require('../repositories/variants.repository');
+const taxesRepo = require('../repositories/taxes.repository');
 const roleStore = require('../services/roleStore');
 const { computeUnitPrice } = require('../services/pricing.service');
 const { parseMoney, formatMoney, multiplyMoney } = require('../utils/money');
@@ -57,26 +58,38 @@ async function prepareLines(lines, plan) {
       }
     }
 
+    let taxRule = null;
+    if (line.tax_id) {
+      taxRule = await taxesRepo.findById(line.tax_id);
+      if (!taxRule) {
+        throw new AppError(`Tax rule '${line.tax_id}' not found`, 400);
+      }
+    }
+
     // Server-side unit price calculation: client-sent prices are completely ignored
+    // pricing.base_price = product base price (e.g. 1000.00)
+    // pricing.adjustment = variant delta (e.g. 560.00 or 0.00)
+    // pricing.unit_price = total unit price (base + adjustment = 1560.00)
     const pricing = computeUnitPrice(product, variant);
-    const unitPrice = pricing.unit_price;
-    const unitPriceMinor = parseMoney(unitPrice);
+    const unitPriceMinor = parseMoney(pricing.unit_price);
     const amountMinor = multiplyMoney(unitPriceMinor, line.quantity);
     const amount = formatMoney(amountMinor);
 
     const description = variant ? `${product.name} (${variant.name})` : product.name;
-    const variantAdjustment = variant ? variant.price_adjustment : null;
+    const basePrice = pricing.base_price;
+    const variantAdjustment = pricing.adjustment || '0.00';
+    const taxRatePercent = taxRule ? formatMoney(parseMoney(taxRule.rate_percent || taxRule.rate)) : '0.00';
 
     prepared.push({
       product_id: line.product_id,
       variant_id: line.variant_id || null,
       quantity: line.quantity,
-      unit_price: unitPrice,
+      unit_price: basePrice, // Store product base price to avoid double-counting in billing
       tax_id: line.tax_id || null,
-      amount,
+      amount, // quantity * (base + variant adjustment)
       description,
-      variant_adjustment: variantAdjustment,
-      tax_rate_percent: '0.00',
+      variant_adjustment: variantAdjustment, // Store variant adjustment separately (default '0.00')
+      tax_rate_percent: taxRatePercent, // Snapshot of tax rule rate
     });
   }
 

@@ -16,8 +16,8 @@ function mapLineFromDb(row) {
     tax_id: row.tax_id || null,
     amount: formatMoney(parseMoney(row.amount)),
     description: row.description || null,
-    variant_adjustment: row.variant_adjustment ? formatMoney(parseMoney(row.variant_adjustment)) : null,
-    tax_rate_percent: row.tax_rate_percent !== null && row.tax_rate_percent !== undefined ? String(row.tax_rate_percent) : null,
+    variant_adjustment: row.variant_adjustment ? formatMoney(parseMoney(row.variant_adjustment)) : '0.00',
+    tax_rate_percent: row.tax_rate_percent !== null && row.tax_rate_percent !== undefined ? formatMoney(parseMoney(row.tax_rate_percent)) : '0.00',
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -51,8 +51,8 @@ async function createLines(subscriptionId, lines = [], client = getSupabaseAdmin
     tax_id: l.tax_id || null,
     amount: formatMoney(parseMoney(l.amount)),
     description: l.description || null,
-    variant_adjustment: l.variant_adjustment ? formatMoney(parseMoney(l.variant_adjustment)) : null,
-    tax_rate_percent: l.tax_rate_percent || null,
+    variant_adjustment: l.variant_adjustment ? formatMoney(parseMoney(l.variant_adjustment)) : '0.00',
+    tax_rate_percent: l.tax_rate_percent ? formatMoney(parseMoney(l.tax_rate_percent)) : '0.00',
   }));
 
   const { data, error } = await client
