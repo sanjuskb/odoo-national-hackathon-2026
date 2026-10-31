@@ -128,7 +128,7 @@ CORS is configured for `http://localhost:5173`.
 
 SUPABASE CLIENT CONNECTION (Frontend):
 - VITE_SUPABASE_URL: `https://bdmwwpfglltcpagwblmk.supabase.co`
-- VITE_SUPABASE_ANON_KEY: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbXd3cGZnbGx0Y3BhZ3dibG1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTg1MDIsImV4cCI6MjEwODkzNDUwMn0.0H2Wufn7RdeXra5YcIWEAuUESBKy2OsIx5qv5cR5GR8`
+- VITE_SUPABASE_ANON_KEY: `<your-supabase-anon-key-from-env>`
 
 INTEGRATION CONTRACT DETAILS:
 
