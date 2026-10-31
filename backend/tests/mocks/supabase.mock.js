@@ -9,6 +9,9 @@ function createSupabaseMock() {
   const quotationTemplateLinesTable = new Map();
   const subscriptionsTable = new Map();
   const subscriptionLinesTable = new Map();
+  const taxRulesTable = new Map();
+  const discountRulesTable = new Map();
+  const discountProductMappingsTable = new Map();
 
   function seedUser({ id, email, password = 'Password123!', full_name = 'Test User', role = 'customer', user_metadata = {} }) {
     const user = {
@@ -133,6 +136,60 @@ function createSupabaseMock() {
     return line;
   }
 
+  function seedTaxRule(t) {
+    const id = t.id || `tax-${Math.random().toString(36).substring(2, 9)}`;
+    const tax = {
+      id,
+      name: t.name,
+      rate_percent: t.rate_percent || t.rate || '0.00',
+      rate: t.rate || t.rate_percent || '0.00',
+      description: t.description || null,
+      is_active: t.is_active !== undefined ? Boolean(t.is_active) : true,
+      created_at: t.created_at || new Date().toISOString(),
+      updated_at: t.updated_at || new Date().toISOString(),
+    };
+    taxRulesTable.set(id, tax);
+    return tax;
+  }
+
+  function seedDiscountRule(d) {
+    const id = d.id || `disc-${Math.random().toString(36).substring(2, 9)}`;
+    const rule = {
+      id,
+      name: d.name || 'Discount',
+      kind: d.kind || d.type || 'percentage',
+      type: d.type || d.kind || 'percentage',
+      value: d.value || '0.00',
+      scope: d.scope || 'subscription',
+      min_amount: d.min_amount !== undefined ? d.min_amount : null,
+      min_quantity: d.min_quantity !== undefined ? d.min_quantity : null,
+      valid_from: d.valid_from || d.start_date || null,
+      start_date: d.start_date || d.valid_from || null,
+      valid_until: d.valid_until || d.end_date || null,
+      end_date: d.end_date || d.valid_until || null,
+      max_uses: d.max_uses !== undefined ? d.max_uses : null,
+      used_count: d.used_count || 0,
+      is_active: d.is_active !== undefined ? Boolean(d.is_active) : true,
+      created_at: d.created_at || new Date().toISOString(),
+      updated_at: d.updated_at || new Date().toISOString(),
+    };
+    discountRulesTable.set(id, rule);
+    return rule;
+  }
+
+  function seedDiscountProductMapping(m) {
+    const id = m.id || `dpm-${Math.random().toString(36).substring(2, 9)}`;
+    const mapping = {
+      id,
+      discount_rule_id: m.discount_rule_id,
+      product_id: m.product_id,
+      created_at: m.created_at || new Date().toISOString(),
+      updated_at: m.updated_at || new Date().toISOString(),
+    };
+    discountProductMappingsTable.set(id, mapping);
+    return mapping;
+  }
+
   function reset() {
     users.clear();
     tokens.clear();
@@ -143,6 +200,9 @@ function createSupabaseMock() {
     quotationTemplateLinesTable.clear();
     subscriptionsTable.clear();
     subscriptionLinesTable.clear();
+    taxRulesTable.clear();
+    discountRulesTable.clear();
+    discountProductMappingsTable.clear();
   }
 
   function getTableMap(name) {
@@ -153,6 +213,9 @@ function createSupabaseMock() {
     if (name === 'quotation_template_lines' || name === 'template_lines') return quotationTemplateLinesTable;
     if (name === 'subscriptions') return subscriptionsTable;
     if (name === 'subscription_lines') return subscriptionLinesTable;
+    if (name === 'tax_rules' || name === 'taxes') return taxRulesTable;
+    if (name === 'discount_rules' || name === 'discounts') return discountRulesTable;
+    if (name === 'discount_product_mappings') return discountProductMappingsTable;
     return new Map();
   }
 
@@ -304,6 +367,14 @@ function createSupabaseMock() {
       },
       gte: (col, val) => {
         filters.push((row) => (row[col] ? row[col] >= val : false));
+        return builder;
+      },
+      in: (col, arr) => {
+        filters.push((row) => Array.isArray(arr) && arr.includes(row[col]));
+        return builder;
+      },
+      is: (col, val) => {
+        filters.push((row) => (val === null ? row[col] === null || row[col] === undefined : row[col] === val));
         return builder;
       },
       ilike: (col, pattern) => {
@@ -470,6 +541,9 @@ function createSupabaseMock() {
     seedQuotationTemplate,
     seedSubscription,
     seedSubscriptionLine,
+    seedTaxRule,
+    seedDiscountRule,
+    seedDiscountProductMapping,
     reset,
     users,
     tokens,
@@ -480,6 +554,9 @@ function createSupabaseMock() {
     quotationTemplateLinesTable,
     subscriptionsTable,
     subscriptionLinesTable,
+    taxRulesTable,
+    discountRulesTable,
+    discountProductMappingsTable,
   };
 }
 
