@@ -33,7 +33,7 @@ async function listByInvoiceId(invoiceId, client = getSupabaseAdmin()) {
     .from('invoice_lines')
     .select('*')
     .eq('invoice_id', invoiceId)
-    .order('created_at', { ascending: true });
+    .order('id', { ascending: true });
 
   if (error) {
     throw new AppError('Failed to fetch invoice lines', 500);
@@ -56,7 +56,6 @@ async function createLines(lines, client = getSupabaseAdmin()) {
       unit_price: formatMoney(parseMoney(l.unit_price || 0)),
       variant_adjustment: formatMoney(parseMoney(l.variant_adjustment || 0)),
       tax_percent: taxPct,
-      tax_rate_percent: taxPct,
       base_amount: formatMoney(parseMoney(l.base_amount || 0)),
       discount_amount: formatMoney(parseMoney(l.discount_amount || 0)),
       tax_amount: formatMoney(parseMoney(l.tax_amount || 0)),

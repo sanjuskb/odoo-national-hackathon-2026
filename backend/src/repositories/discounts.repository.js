@@ -137,7 +137,6 @@ async function create(discountData, client = getSupabaseAdmin()) {
   const row = {
     name: discountData.name,
     kind,
-    type: kind,
     value: val,
     scope: discountData.scope || 'subscription',
     min_amount: minAmt,
@@ -184,9 +183,7 @@ async function update(id, updates, client = getSupabaseAdmin()) {
 
   if (updates.name !== undefined) patch.name = updates.name;
   if (updates.kind !== undefined || updates.type !== undefined) {
-    const k = updates.kind || updates.type;
-    patch.kind = k;
-    patch.type = k;
+    patch.kind = updates.kind || updates.type;
   }
   if (updates.value !== undefined) patch.value = formatMoney(parseMoney(updates.value));
   if (updates.scope !== undefined) patch.scope = updates.scope;

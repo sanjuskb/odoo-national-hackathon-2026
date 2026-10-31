@@ -6,17 +6,24 @@ const { formatMoney, parseMoney } = require('../utils/money');
 
 function mapLineFromDb(row) {
   if (!row) return null;
+  const unitPriceMinor = parseMoney(row.unit_price);
+  const varAdjMinor = row.variant_adjustment ? parseMoney(row.variant_adjustment) : 0;
+  const qty = parseInt(row.quantity, 10) || 1;
+  const computedAmount = row.amount !== undefined && row.amount !== null
+    ? formatMoney(parseMoney(row.amount))
+    : formatMoney((unitPriceMinor + varAdjMinor) * qty);
+
   return {
     id: row.id,
     subscription_id: row.subscription_id,
     product_id: row.product_id,
     variant_id: row.variant_id || null,
     quantity: row.quantity,
-    unit_price: formatMoney(parseMoney(row.unit_price)),
+    unit_price: formatMoney(unitPriceMinor),
     tax_id: row.tax_id || null,
-    amount: formatMoney(parseMoney(row.amount)),
+    amount: computedAmount,
     description: row.description || null,
-    variant_adjustment: row.variant_adjustment ? formatMoney(parseMoney(row.variant_adjustment)) : '0.00',
+    variant_adjustment: row.variant_adjustment ? formatMoney(varAdjMinor) : '0.00',
     tax_rate_percent: row.tax_rate_percent !== null && row.tax_rate_percent !== undefined ? formatMoney(parseMoney(row.tax_rate_percent)) : '0.00',
     created_at: row.created_at,
     updated_at: row.updated_at,

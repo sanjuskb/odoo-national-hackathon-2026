@@ -45,7 +45,7 @@ async function listByInvoiceId(invoiceId, client = getSupabaseAdmin()) {
     .from('payments')
     .select('*')
     .eq('invoice_id', invoiceId)
-    .order('payment_date', { ascending: true });
+    .order('paid_at', { ascending: true });
 
   if (error) {
     throw new AppError('Failed to fetch payments for invoice', 500);
@@ -71,14 +71,15 @@ async function list(
     query = query.eq('invoice_id', invoice_id);
   }
   if (date_from) {
-    query = query.gte('payment_date', date_from);
+    query = query.gte('paid_at', date_from);
   }
   if (date_to) {
-    query = query.lte('payment_date', date_to);
+    const toBound = date_to.length === 10 ? `${date_to}T23:59:59.999Z` : date_to;
+    query = query.lte('paid_at', toBound);
   }
 
   query = query
-    .order('payment_date', { ascending: false })
+    .order('paid_at', { ascending: false })
     .order('created_at', { ascending: false })
     .range(offset, offset + safeLimit - 1);
 
@@ -213,7 +214,6 @@ async function recordPayment(
         .from('invoices')
         .update({
           status: 'paid',
-          paid_at: paidAt,
           updated_at: new Date().toISOString(),
         })
         .eq('id', invoice_id)

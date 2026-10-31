@@ -19,7 +19,7 @@ function mapInvoiceFromDb(row) {
     billing_period_end: endPeriod,
     billing_period_end_exclusive: endPeriod,
     currency: row.currency || 'INR',
-    invoice_number: row.invoice_number,
+    invoice_number: row.invoice_number || (row.id ? `INV-${row.id.slice(0, 8).toUpperCase()}` : null),
     subtotal: formatMoney(parseMoney(row.subtotal || 0)),
     discount_total: formatMoney(parseMoney(row.discount_total || 0)),
     tax_total: formatMoney(parseMoney(row.tax_total || 0)),
@@ -232,12 +232,15 @@ async function confirmInvoice(id, client = getSupabaseAdmin()) {
 }
 
 async function createInvoice(invoiceData, client = getSupabaseAdmin()) {
+  const endPeriod = invoiceData.billing_period_end_exclusive || invoiceData.billing_period_end || null;
   const row = {
     id: invoiceData.id,
     subscription_id: invoiceData.subscription_id || null,
     customer_id: invoiceData.customer_id,
     billing_period_start: invoiceData.billing_period_start || null,
-    billing_period_end: invoiceData.billing_period_end || null,
+    billing_period_end_exclusive: endPeriod,
+    billing_period_end: endPeriod,
+    currency: (invoiceData.currency || 'INR').slice(0, 3).toUpperCase(),
     invoice_number: invoiceData.invoice_number,
     subtotal: formatMoney(parseMoney(invoiceData.subtotal || 0)),
     discount_total: formatMoney(parseMoney(invoiceData.discount_total || 0)),

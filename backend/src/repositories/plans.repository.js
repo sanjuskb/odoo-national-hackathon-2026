@@ -7,8 +7,11 @@ function mapPlanFromDb(row) {
   return {
     id: row.id,
     product_id: row.product_id,
+    name: row.name || 'Standard Plan',
     price: formatMoney(parseMoney(row.price)),
+    currency: row.currency || 'INR',
     frequency: row.frequency,
+    billing_frequency: row.frequency,
     min_quantity: row.min_quantity ?? 1,
     available_from: row.available_from || null,
     available_until: row.available_until || null,
@@ -24,8 +27,15 @@ function mapPlanFromDb(row) {
 function mapPlanToDb(data) {
   const row = {};
   if (data.product_id !== undefined) row.product_id = data.product_id;
+  if (data.name !== undefined) {
+    row.name = data.name.trim();
+  } else if (!data.id) {
+    row.name = 'Standard Plan';
+  }
   if (data.price !== undefined) row.price = parseFloat(formatMoney(parseMoney(data.price)));
-  if (data.frequency !== undefined) row.frequency = data.frequency;
+  row.currency = (data.currency || 'INR').slice(0, 3).toUpperCase();
+  const freq = data.frequency || data.billing_frequency;
+  if (freq !== undefined) row.frequency = freq;
   if (data.min_quantity !== undefined) row.min_quantity = parseInt(data.min_quantity, 10);
   if (data.available_from !== undefined) row.available_from = data.available_from;
   if (data.available_until !== undefined) row.available_until = data.available_until;

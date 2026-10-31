@@ -183,8 +183,11 @@ async function getCollectedTotal(
       .order('id', { ascending: true })
       .range(offset, offset + chunkSize - 1);
 
-    if (from) q = q.gte('payment_date', from);
-    if (to) q = q.lte('payment_date', to);
+    if (from) q = q.gte('paid_at', from);
+    if (to) {
+      const toBound = to.length === 10 ? `${to}T23:59:59.999Z` : to;
+      q = q.lte('paid_at', toBound);
+    }
     if (invoice_id) q = q.eq('invoice_id', invoice_id);
     if (method) q = q.eq('method', method);
     if (custInvoiceIds) q = q.in('invoice_id', custInvoiceIds);
@@ -479,12 +482,15 @@ async function listPaymentsReport(
   let q = client
     .from('payments')
     .select('*')
-    .order('payment_date', { ascending: false })
+    .order('paid_at', { ascending: false })
     .order('created_at', { ascending: false })
     .range(offset, offset + safeLimit - 1);
 
-  if (from) q = q.gte('payment_date', from);
-  if (to) q = q.lte('payment_date', to);
+  if (from) q = q.gte('paid_at', from);
+  if (to) {
+    const toBound = to.length === 10 ? `${to}T23:59:59.999Z` : to;
+    q = q.lte('paid_at', toBound);
+  }
   if (invoice_id) q = q.eq('invoice_id', invoice_id);
   if (method) q = q.eq('method', method);
   if (custInvoiceIds) q = q.in('invoice_id', custInvoiceIds);
@@ -498,9 +504,9 @@ async function listPaymentsReport(
     id: p.id,
     invoice_id: p.invoice_id,
     amount: formatMoney(parseMoney(p.amount || 0)),
-    payment_date: p.payment_date,
+    payment_date: p.paid_at ? p.paid_at.slice(0, 10) : (p.payment_date || p.created_at),
     method: p.method,
-    reference: p.reference || null,
+    reference: p.external_reference || p.reference || null,
     note: p.note || null,
     created_at: p.created_at,
   }));

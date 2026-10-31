@@ -70,7 +70,6 @@ async function create(taxData, client = getSupabaseAdmin()) {
   const row = {
     name: taxData.name,
     rate_percent: rateStr,
-    rate: rateStr,
     description: taxData.description || null,
     is_active: taxData.is_active !== undefined ? Boolean(taxData.is_active) : true,
   };
@@ -96,7 +95,6 @@ async function update(id, updates, client = getSupabaseAdmin()) {
     const rateVal = updates.rate_percent !== undefined ? updates.rate_percent : updates.rate;
     const rateStr = formatMoney(parseMoney(rateVal));
     patch.rate_percent = rateStr;
-    patch.rate = rateStr;
   }
   if (updates.description !== undefined) patch.description = updates.description;
   if (updates.is_active !== undefined) patch.is_active = Boolean(updates.is_active);
