@@ -215,21 +215,144 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-004 | GET | /products | Any authenticated | — (query: page, page_size, search) | `{ items: [Product], pagination }` | — | 401 | products | Proposed |
-| FR-004 | POST | /products | Admin | `{ name, type, sales_price, cost_price, notes }` | `{ product: Product }` | name required; prices as decimal strings | 403, 422 | products | Proposed |
-| FR-004 | GET | /products/:id | Any authenticated | — | `{ product: Product, variants: [Variant] }` | Valid UUID | 401, 404 | products, product_variants | Proposed |
-| FR-004 | PATCH | /products/:id | Admin | `{ name?, type?, sales_price?, cost_price?, notes? }` | `{ product: Product }` | At least one field | 403, 404, 422 | products | Proposed |
-| FR-005 | POST | /products/:id/variants | Admin | `{ name, price_adjustment }` | `{ variant: Variant }` | name required; price_adjustment decimal string | 403, 404, 422 | product_variants | Proposed |
-| FR-005 | PATCH | /products/:id/variants/:variantId | Admin | `{ name?, price_adjustment? }` | `{ variant: Variant }` | At least one field | 403, 404, 422 | product_variants | Proposed |
+| FR-004 | GET | /products | Any authenticated | — (query: page, page_size, search, type) | `{ items: [Product], pagination }` | page >= 1, page_size <= 100; cost_price stripped for customer | 401 | products | Implemented |
+| FR-004 | POST | /products | Admin | `{ name, type, sales_price, cost_price, notes }` | `{ product: Product }` | name required; prices non-negative decimal strings | 400, 401, 403 | products | Implemented |
+| FR-004 | GET | /products/:id | Any authenticated | — | `{ product: Product, variants: [Variant] }` | Valid ID; cost_price stripped for customer | 401, 404 | products, product_variants | Implemented |
+| FR-004 | PATCH | /products/:id | Admin | `{ name?, type?, sales_price?, cost_price?, notes? }` | `{ product: Product }` | At least one field; non-negative money | 400, 401, 403, 404 | products | Implemented |
+| FR-005 | POST | /products/:id/variants | Admin | `{ name, price_adjustment }` | `{ variant: Variant }` | name required; price_adjustment non-negative money | 400, 401, 403, 404 | product_variants | Implemented |
+| FR-005 | PATCH | /products/:id/variants/:variantId | Admin | `{ name?, price_adjustment? }` | `{ variant: Variant }` | At least one field; variant must belong to product | 400, 401, 403, 404 | product_variants | Implemented |
+| FR-005 (Addition) | GET | /products/:id/price | Any authenticated | — (query: variant_id?) | `{ product_id, variant_id, base_price, adjustment, unit_price }` | Valid product ID; optional variant must belong to product | 400, 401, 404 | products, product_variants | Implemented (Addition) |
+
+#### Implemented Product & Variant Examples
+
+##### 1. POST /api/v1/products (Admin)
+- **Request Body:**
+```json
+{
+  "name": "Brightloop CRM",
+  "type": "software",
+  "sales_price": "1000.00",
+  "cost_price": "300.00",
+  "notes": "Enterprise subscription edition"
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "product": {
+      "id": "prod-1",
+      "name": "Brightloop CRM",
+      "type": "software",
+      "sales_price": "1000.00",
+      "cost_price": "300.00",
+      "notes": "Enterprise subscription edition",
+      "created_at": "2026-10-31T06:00:00.000Z",
+      "updated_at": "2026-10-31T06:00:00.000Z"
+    }
+  },
+  "message": "Product created successfully",
+  "errors": null
+}
+```
+
+##### 2. POST /api/v1/products/:id/variants (Admin)
+- **Request Body:**
+```json
+{
+  "name": "Odoo Brand",
+  "price_adjustment": "560.00"
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "variant": {
+      "id": "var-1",
+      "product_id": "prod-1",
+      "name": "Odoo Brand",
+      "price_adjustment": "560.00",
+      "created_at": "2026-10-31T06:05:00.000Z",
+      "updated_at": "2026-10-31T06:05:00.000Z"
+    }
+  },
+  "message": "Product variant created successfully",
+  "errors": null
+}
+```
+
+##### 3. GET /api/v1/products/:id/price?variant_id=var-1 (Contract Addition)
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "product_id": "prod-1",
+    "variant_id": "var-1",
+    "base_price": "1000.00",
+    "adjustment": "560.00",
+    "unit_price": "1560.00"
+  },
+  "message": "Price calculated successfully",
+  "errors": null
+}
+```
 
 ### PLANS (FR-006, FR-007, FR-008)
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-006 | GET | /plans | Any authenticated | — (query: page, page_size) | `{ items: [Plan], pagination }` | — | 401 | plans | Proposed |
-| FR-006, FR-007, FR-008 | POST | /plans | Admin | `{ product_id, price, frequency, min_quantity, available_from, available_until, auto_close, allow_early_close, allow_pause, allow_renew }` | `{ plan: Plan }` | frequency ∈ {daily,weekly,monthly,yearly}; price decimal string; dates ISO 8601 | 403, 422 | plans | Proposed |
-| FR-006 | GET | /plans/:id | Any authenticated | — | `{ plan: Plan }` | Valid UUID | 401, 404 | plans | Proposed |
-| FR-006, FR-008 | PATCH | /plans/:id | Admin | Partial plan fields | `{ plan: Plan }` | At least one field | 403, 404, 422 | plans | Proposed |
+| FR-006 | GET | /plans | Any authenticated | — (query: page, page_size, frequency, product_id, available) | `{ items: [Plan], pagination }` | Customers only see plans within active availability window | 401 | plans | Implemented |
+| FR-006, FR-007, FR-008 | POST | /plans | Admin | `{ product_id, price, frequency, min_quantity, available_from, available_until, auto_close, allow_early_close, allow_pause, allow_renew }` | `{ plan: Plan }` | frequency ∈ {daily,weekly,monthly,yearly}; min_quantity >= 1; available_until >= available_from | 400, 401, 403, 404 | plans, products | Implemented |
+| FR-006 | GET | /plans/:id | Any authenticated | — | `{ plan: Plan }` | Valid ID; customer requesting unavailable plan receives 404 | 401, 404 | plans | Implemented |
+| FR-006, FR-008 | PATCH | /plans/:id | Admin | Partial plan fields | `{ plan: Plan }` | Re-validates merged dates and quantities; non-negative money | 400, 401, 403, 404 | plans | Implemented |
+
+#### Implemented Plan Examples
+
+##### 1. POST /api/v1/plans (Admin)
+- **Request Body:**
+```json
+{
+  "product_id": "prod-1",
+  "price": "99.00",
+  "frequency": "monthly",
+  "min_quantity": 1,
+  "available_from": "2026-01-01T00:00:00.000Z",
+  "available_until": "2026-12-31T23:59:59.000Z",
+  "auto_close": false,
+  "allow_early_close": true,
+  "allow_pause": true,
+  "allow_renew": true
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "plan": {
+      "id": "plan-1",
+      "product_id": "prod-1",
+      "price": "99.00",
+      "frequency": "monthly",
+      "min_quantity": 1,
+      "available_from": "2026-01-01T00:00:00.000Z",
+      "available_until": "2026-12-31T23:59:59.000Z",
+      "auto_close": false,
+      "allow_early_close": true,
+      "allow_pause": true,
+      "allow_renew": true,
+      "created_at": "2026-10-31T06:10:00.000Z",
+      "updated_at": "2026-10-31T06:10:00.000Z"
+    }
+  },
+  "message": "Plan created successfully",
+  "errors": null
+}
+```
 
 ### TAXES (FR-014)
 
