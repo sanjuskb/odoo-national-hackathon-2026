@@ -44,6 +44,15 @@ create trigger brightloop_auth_role_metadata_changed
 after update of raw_app_meta_data on auth.users
 for each row execute function public.sync_brightloop_profile_role();
 
+-- Backfill existing development Auth users, preserving server-assigned roles.
+-- This is an insert-only operation; do not overwrite existing profiles.
+insert into public.profiles(id,email,full_name,role)
+select u.id,lower(u.email),u.raw_user_meta_data->>'full_name',
+  case when u.raw_app_meta_data->>'role' in ('admin','staff','customer')
+    then u.raw_app_meta_data->>'role' else 'customer' end
+from auth.users u where u.email is not null
+on conflict (id) do nothing;
+
 create table public.products (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(trim(name))>0),
