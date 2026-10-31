@@ -7,13 +7,17 @@ const { validatePaymentAmount, computeInvoiceFinancials } = require('../services
 
 function mapPaymentFromDb(row) {
   if (!row) return null;
+  const pDate = row.paid_at || row.payment_date || row.created_at;
+  const ref = row.external_reference || row.reference || null;
   return {
     id: row.id,
     invoice_id: row.invoice_id,
     amount: formatMoney(parseMoney(row.amount || 0)),
-    payment_date: row.payment_date,
+    payment_date: pDate,
+    paid_at: pDate,
     method: row.method,
-    reference: row.reference || null,
+    reference: ref,
+    external_reference: ref,
     note: row.note || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -177,14 +181,17 @@ async function recordPayment(
     );
 
     const paymentDate = payment_date || new Date().toISOString().slice(0, 10);
+    const paidAtTimestamp = paymentDate.length === 10 ? `${paymentDate}T00:00:00.000Z` : paymentDate;
 
     // 4. Insert payment
     const paymentPayload = {
       invoice_id,
       amount: amountFormatted,
       payment_date: paymentDate,
+      paid_at: paidAtTimestamp,
       method,
       reference: reference || null,
+      external_reference: reference || null,
       note: note || null,
     };
 

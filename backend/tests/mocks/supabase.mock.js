@@ -195,12 +195,15 @@ function createSupabaseMock() {
 
   function seedInvoice(inv) {
     const id = inv.id || `inv-${Math.random().toString(36).substring(2, 9)}`;
+    const endPeriod = inv.billing_period_end_exclusive || inv.billing_period_end || null;
     const invoice = {
       id,
       subscription_id: inv.subscription_id || null,
       customer_id: inv.customer_id,
       billing_period_start: inv.billing_period_start || null,
-      billing_period_end: inv.billing_period_end || null,
+      billing_period_end: endPeriod,
+      billing_period_end_exclusive: endPeriod,
+      currency: inv.currency || 'INR',
       invoice_number: inv.invoice_number || `INV-${Date.now().toString().slice(-6)}`,
       subtotal: inv.subtotal || '0.00',
       discount_total: inv.discount_total || '0.00',
@@ -219,6 +222,7 @@ function createSupabaseMock() {
 
   function seedInvoiceLine(l) {
     const id = l.id || `invline-${Math.random().toString(36).substring(2, 9)}`;
+    const taxPct = l.tax_percent || l.tax_rate_percent || '0.00';
     const line = {
       id,
       invoice_id: l.invoice_id,
@@ -227,7 +231,8 @@ function createSupabaseMock() {
       quantity: l.quantity || 1,
       unit_price: l.unit_price || '0.00',
       variant_adjustment: l.variant_adjustment || '0.00',
-      tax_rate_percent: l.tax_rate_percent || '0.00',
+      tax_percent: taxPct,
+      tax_rate_percent: taxPct,
       base_amount: l.base_amount || '0.00',
       discount_amount: l.discount_amount || '0.00',
       tax_amount: l.tax_amount || '0.00',
@@ -241,13 +246,17 @@ function createSupabaseMock() {
 
   function seedPayment(p) {
     const id = p.id || `pmt-${Math.random().toString(36).substring(2, 9)}`;
+    const pDate = p.paid_at || p.payment_date || new Date().toISOString().slice(0, 10);
+    const ref = p.external_reference || p.reference || null;
     const payment = {
       id,
       invoice_id: p.invoice_id,
       amount: p.amount || '0.00',
-      payment_date: p.payment_date || new Date().toISOString().slice(0, 10),
+      payment_date: pDate,
+      paid_at: pDate,
       method: p.method || 'cash',
-      reference: p.reference || null,
+      reference: ref,
+      external_reference: ref,
       note: p.note || null,
       created_at: p.created_at || new Date().toISOString(),
       updated_at: p.updated_at || new Date().toISOString(),

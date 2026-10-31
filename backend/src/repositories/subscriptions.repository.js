@@ -29,7 +29,7 @@ function mapSubscriptionFromDb(row, lines = []) {
     template_id: row.template_id || null,
     next_billing_date: row.next_billing_date || null,
     billing_anchor_date: row.billing_anchor_date || null,
-    is_paused: Boolean(row.is_paused),
+    is_paused: Boolean(row.is_paused !== undefined ? row.is_paused : (row.status === 'paused')),
     subtotal: formatMoney(subtotalMinor),
     created_at: row.created_at,
     updated_at: row.updated_at,

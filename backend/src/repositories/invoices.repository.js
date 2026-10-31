@@ -9,12 +9,15 @@ const paymentsRepo = require('./payments.repository');
 
 function mapInvoiceFromDb(row) {
   if (!row) return null;
+  const endPeriod = row.billing_period_end_exclusive || row.billing_period_end || null;
   return {
     id: row.id,
     subscription_id: row.subscription_id || null,
     customer_id: row.customer_id,
     billing_period_start: row.billing_period_start || null,
-    billing_period_end: row.billing_period_end || null,
+    billing_period_end: endPeriod,
+    billing_period_end_exclusive: endPeriod,
+    currency: row.currency || 'INR',
     invoice_number: row.invoice_number,
     subtotal: formatMoney(parseMoney(row.subtotal || 0)),
     discount_total: formatMoney(parseMoney(row.discount_total || 0)),

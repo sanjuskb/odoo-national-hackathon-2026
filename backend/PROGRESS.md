@@ -474,7 +474,20 @@ This PR delivers the complete backend foundation for Phases 2, 3, 4, 5, and 6 on
   - Harsha optimization proposal: `backend/REPORTS_SQL_PROPOSAL.md` (7 B-tree indexes, stored RPC).
 
 ## Verification & Test Results
-- **Test Suite:** 17 test files, 278 tests passed, 0 failures (1.92s execution).
+- **Test Suite:** 18 test files, 282 tests passed, 0 failures (1.94s execution).
 - **Parity Verified:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
 - **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, XSS protection verified via automated tests.
 ```
+
+---
+
+## Database Interoperability & Schema Verification Handoff (Harsha `feature/harsha-supabase-setup`)
+- **Core Schema Inspection:** Verified Harsha's 16 tables in `migrations/20261031_001_brightloop_core.sql` and `20261031_002_atomic_billing_rpc.sql`.
+- **Dual-Mapping Compatibility Layer:** Added backwards-compatible repository mappings in:
+  1. `invoices.repository.js`: maps `billing_period_end_exclusive` <-> `billing_period_end` and `currency`.
+  2. `invoiceLines.repository.js`: maps `tax_percent` <-> `tax_rate_percent`.
+  3. `payments.repository.js`: maps `paid_at` <-> `payment_date` and `external_reference` <-> `reference`.
+  4. `subscriptions.repository.js`: maps `status === 'paused'` <-> `is_paused`.
+- **Contract Verification Tests:** Added `backend/tests/dual-mapping-contracts.test.js` validating schema interoperability against Harsha's PostgreSQL table definitions.
+- **Status:** 100% interoperable. All 282 tests pass. Ready for develop integration once Harsha's PR lands.
+
