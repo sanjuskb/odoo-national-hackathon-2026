@@ -11,6 +11,10 @@ router.use('/auth', authRoutes);
 router.use('/staff', staffRoutes);
 router.use('/admin', adminRoutes);
 
+// Protected admin billing trigger — calls Sanju's deterministic invoice module
+const {createBillingRouter}=require('./billing.cjs');
+router.use('/billing',createBillingRouter());
+
 // Test harness route for testing requireSelfOrStaff in test mode
 if (process.env.NODE_ENV === 'test') {
   const authenticate = require('../middleware/authenticate');
