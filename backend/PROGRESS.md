@@ -6,9 +6,9 @@
 |-------|-------|
 | Branch | `feature/amarnath-products-plans` |
 | Base Used | `origin/develop` (`74a226f`) |
-| Current Phase | **Phase 3: Quotation Templates and Subscriptions Lifecycle** |
-| Commits | `8cb447c`, `d9d4c3c`, `c674803`, `10a1e2f`, `8a729ec`, `32b66ce`, `12be048`, `dd7bf2b`, `e56d2b1`, `a88fcd4` |
-| Date | 2026-10-31 ~13:00 IST |
+| Current Phase | **Phase 4: Taxes, Discounts and Billing Integration** |
+| Commits | `8cb447c`, `d9d4c3c`, `c674803`, `10a1e2f`, `8a729ec`, `32b66ce`, `12be048`, `dd7bf2b`, `e56d2b1`, `a88fcd4`, `9bcff42` |
+| Date | 2026-10-31 ~13:35 IST |
 | Author | Amarnadh (backend) |
 
 ---
@@ -74,7 +74,18 @@
 | ├ Customer portal | `/portal/subscriptions`, `/portal/subscriptions/:id/{pause,resume,close,renew}` thin routes | ✅ Done |
 | ├ Automated tests | 162/162 Vitest tests passing across whole suite | ✅ Done |
 | ├ Real smoke check | Skipped with reason: tables `public.quotation_templates`, `public.quotation_template_lines`, `public.subscriptions`, `public.subscription_lines` do not exist in live Supabase (`PGRST205`) | ⚠️ Skipped |
-| **Phase 4** | Taxes, discounts, discount-to-product mappings | ⬜ Next task |
+| **Phase 4** | Taxes, discounts and billing integration (Sanju owns deterministic billing core) | ✅ Completed |
+| ├ Line pricing reconciliation (A5) | `unit_price` stored as base price, `variant_adjustment` stored separately, `amount` = `quantity * (base + variant)`, zero double-counting in billing | ✅ Done |
+| ├ Tax snapshot (A5) | `tax_rate_percent` snapshotted from `tax_rules` via `tax_id` (or `0.00` if null) on line create/update | ✅ Done |
+| ├ Tax service | `src/services/tax.service.js` pure integer arithmetic with half-up rounding (100.00 @ 18% = 18.00; 0.10 @ 18% = 0.02; 33.33 @ 5% = 1.67; 0% = 0.00) | ✅ Done |
+| ├ Tax endpoints | `GET/POST/PATCH /api/v1/taxes` (admin write, staff read-only, customer 403, soft-deactivate instead of delete) | ✅ Done |
+| ├ Discount service | `src/services/discount.service.js` (eligibility, compute discount, select best discount with no stacking, exact integer line allocation) | ✅ Done |
+| ├ Discount endpoints | `GET/POST/PATCH /api/v1/discounts` (admin write, staff read-only, customer 403, `used_count` unmodifiable, soft-deactivate) | ✅ Done |
+| ├ Invoice calculator | `src/services/invoiceCalculator.service.js` verified with zero discrepancy against Sanju's `calculateInvoice` (4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total) | ✅ Done |
+| ├ Billing preview endpoint | `GET /api/v1/billing/preview` (admin/staff 200, customer 403, writes NOTHING to DB, rejects closed subs with 409) | ✅ Done |
+| ├ Automated tests | 202/202 Vitest tests passing across whole suite (12 test files, 0 failures, 1.37s) | ✅ Done |
+| ├ Real smoke check | Skipped with reason: tables `public.tax_rules`, `public.discount_rules` do not exist in live Supabase (`PGRST205`) and `SMOKE_ADMIN_*` not set | ⚠️ Skipped |
+| **Phase 5** | Billing engine: idempotent invoice generation & persistence | ⬜ Next task |
 | **Phase 5** | Billing engine: idempotent invoice generation | ⬜ Not started |
 | **Phase 6** | Invoices & actions (confirm, cancel, send, print) | ⬜ Not started |
 | **Phase 7** | Payments & finance reporting dashboard | ⬜ Not started |
@@ -211,6 +222,15 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | `POST` | `/api/v1/subscriptions/auto-close` | Admin only | Manually triggered admin batch job for auto-closing expired active subscriptions | ✅ 2 test cases |
 | `GET` | `/api/v1/portal/subscriptions` | Customer | Self-service portal: list customer's own subscriptions | ✅ 2 test cases |
 | `POST` | `/api/v1/portal/subscriptions/:id/:action`| Customer | Self-service portal: pause, resume, close, renew own subscription | ✅ 3 test cases |
+| `GET` | `/api/v1/taxes` | Admin, Staff | Paginated tax rules list (filter active) | ✅ 2 test cases |
+| `GET` | `/api/v1/taxes/:id` | Admin, Staff | Retrieve tax rule by ID | ✅ 1 test case |
+| `POST` | `/api/v1/taxes` | Admin only | Create tax rule with 0-100% rate | ✅ 2 test cases |
+| `PATCH` | `/api/v1/taxes/:id` | Admin only | Partially update tax rule (deactivate instead of delete) | ✅ 2 test cases |
+| `GET` | `/api/v1/discounts` | Admin, Staff | Paginated discount rules list (filter active) | ✅ 1 test case |
+| `GET` | `/api/v1/discounts/:id` | Admin, Staff | Retrieve discount rule by ID | ✅ 1 test case |
+| `POST` | `/api/v1/discounts` | Admin only | Create discount rule with validation (percentage/fixed, scope) | ✅ 3 test cases |
+| `PATCH` | `/api/v1/discounts/:id` | Admin only | Partially update discount rule (cannot reduce max_uses below used_count) | ✅ 2 test cases |
+| `GET` | `/api/v1/billing/preview` | Admin, Staff | Generate next invoice preview (writes NOTHING to DB) | ✅ 4 test cases |
 
 ---
 
@@ -233,18 +253,59 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
    - Set to `subscription.start_date` upon transition from `confirmed` -> `active`, matching billing engine's first-period requirement.
 6. **Template Instantiation Ambiguity Resolution:**
    - If `template_id` is supplied, client must NOT pass `plan_id` or `lines` (rejected with 400). Template's plan and lines are copied directly, and `valid_until` is set to `today + validity_days`.
+7. **No Discount Stacking:**
+   - Single best eligible discount providing the largest saving is applied to an invoice. Ties broken deterministically by lowest discount ID.
+8. **Discount Applied Before Tax:**
+   - Line taxes are computed on the discounted net line amount (`net - discount_allocated`).
+9. **Per-Line Half-Up Rounding:**
+   - All financial math is conducted in integer minor units (paise/cents). Tax and percentage discounts round half-up using `(n + denominator / 2) / denominator`.
+10. **Invoice Preview Writes Nothing:**
+    - `GET /api/v1/billing/preview` calculates deterministic future invoice values for admin/staff review without generating DB invoice records or altering discount `used_count`.
 
 ---
 
-## Existing Billing Code Expectations & Differences
+## Schema Reconciliation Table
 
-1. **Expected Subscription Fields (`supabaseBillingRepository.cjs`):**
-   - Queries `subscriptions`: `id, status, customer_id, plan_id, start_date, next_billing_date, billing_anchor_date`.
-   - Queries `subscription_lines`: `product_id, description, quantity, unit_price, variant_adjustment, tax_rate_percent`.
-   - All fields match the database mapping implemented in Phase 3 repositories.
-2. **Pause Filtering in Billing:**
-   - The billing repository currently queries `.eq('status', 'active').lte('next_billing_date', asOf)` without filtering out `is_paused`.
-   - Action needed: Harsha / Sanju must add `.eq('is_paused', false)` to the billing query, or hold `next_billing_date` while paused. Recorded as needed below.
+| Repository Entity | Table Name | Columns Used in Backend Code | Migrations Defined in `database/` | Status / Mismatch Resolution |
+|---|---|---|---|---|
+| **Profiles/Roles** | Auth Metadata | `id, email, role, created_at` | None (`database/` has `.gitkeep` only) | Stored in Supabase Auth `app_metadata.role`; Harsha `profiles` table needed |
+| **Products** | `products` | `id, name, type, sales_price, cost_price, notes, is_active, created_at, updated_at` | None | Follows `docs/architecture/database-design-proposal.md`; cost_price hidden from customer |
+| **Product Variants** | `product_variants` | `id, product_id, name, attribute_name, attribute_value, price_adjustment, is_active, created_at, updated_at` | None | Price adjustment stored as delta string/numeric; foreign key to `products(id)` |
+| **Plans** | `plans` | `id, name, frequency, price, currency, min_quantity, available_from, available_until, auto_close, allow_early_close, allow_pause, allow_renew, is_active, created_at, updated_at` | None | Frequency ∈ `{daily, weekly, monthly, yearly}`; currency ISO-3 |
+| **Quotation Templates** | `quotation_templates` | `id, name, plan_id, validity_days, is_active, created_at, updated_at` | None | Valid days >= 1; plan reference |
+| **Template Lines** | `quotation_template_lines` | `id, template_id, product_id, variant_id, quantity, created_at, updated_at` | None | Copied directly when instantiating subscription |
+| **Subscriptions** | `subscriptions` | `id, subscription_number, customer_id, plan_id, start_date, expiry_date, payment_terms, status, valid_until, template_id, next_billing_date, billing_anchor_date, is_paused, created_at, updated_at` | None | Unique subscription number; lifecycle status enum; `is_paused` flag |
+| **Subscription Lines** | `subscription_lines` | `id, subscription_id, product_id, variant_id, quantity, unit_price, variant_adjustment, tax_id, tax_rate_percent, amount, description, created_at, updated_at` | None | `unit_price` = base; `variant_adjustment` = delta; `amount` = qty * (base + delta); `tax_rate_percent` snapshotted from tax rule |
+| **Tax Rules** | `tax_rules` | `id, name, rate_percent, rate, description, is_active, created_at, updated_at` | None | Rate 0-100% max 2 decimals; soft-deactivate |
+| **Discount Rules** | `discount_rules` | `id, name, kind, type, value, scope, min_amount, min_quantity, valid_from, valid_until, max_uses, used_count, is_active, created_at, updated_at` | None | Aligned with Sanju `supabaseBillingRepository.cjs`; `used_count` unmodifiable |
+| **Discount Product Mappings** | `discount_product_mappings` | `id, discount_rule_id, product_id, created_at, updated_at` | None | Maps product-scoped discounts to products; queries match Sanju billing code |
+
+---
+
+## Existing Billing Code Findings & Reconciliations
+
+1. **Step A5: Line Pricing & Tax Snapshot Reconciliation (Zero Double-Counting):**
+   - In `billing/src/calculator.cjs`, billing calculates:
+     `const base = (unit + adjustment) * BigInt(quantity);`
+   - In `supabaseBillingRepository.cjs`, billing queries:
+     `select('product_id, description, quantity, unit_price, variant_adjustment, tax_rate_percent')`
+   - **Reconciliation Fix:**
+     - `subscription_lines.unit_price` stores the product's **BASE** price (e.g. `1000.00`).
+     - `subscription_lines.variant_adjustment` stores the variant price delta (e.g. `560.00` or `0.00`).
+     - `subscription_lines.amount` stores `quantity * (base + variant)` (e.g. `3 * 1560.00 = 4680.00`).
+     - Result: `(1000.00 + 560.00) * 3 = 4680.00`. Zero double counting!
+     - `subscription_lines.tax_rate_percent` snapshots the referenced `tax_rules.rate_percent` when `tax_id` is supplied (defaults to `0.00` if null).
+     - `description` snapshots `Product Name (Variant Name)`.
+2. **Step A6: Pause Filtering in Billing Finding:**
+   - In `backend/src/services/supabaseBillingRepository.cjs`, `listDueSubscriptionIds` queries:
+     `client.from('subscriptions').select('id').eq('status','active').lte('next_billing_date',asOf)`
+   - It does not check `.eq('is_paused', false)`.
+   - **Exact one-line change required by Sanju:**
+     Add `.eq('is_paused', false)` to the query in `listDueSubscriptionIds`:
+     ```javascript
+     .eq('status', 'active').eq('is_paused', false).lte('next_billing_date', asOf)
+     ```
+     and in `getBillingSnapshot(id)`: verify `!s.is_paused`.
 
 ---
 
@@ -253,7 +314,7 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 1. **Role Store:** User roles continue using `app_metadata.role` fallback until Harsha provides the `profiles` table.
 2. **Subscription Number Sequence:** Temporary random generation with 5 retries; replace with a PostgreSQL sequence once Harsha creates it.
 3. **Real Supabase DB Tables Missing:**
-   - Real smoke check for Phase 3 was skipped because Harsha has not yet migrated `public.quotation_templates`, `public.quotation_template_lines`, `public.subscriptions`, and `public.subscription_lines` to live Supabase (`PGRST205: Could not find table in schema cache`).
+   - Real smoke checks skipped because Harsha has not yet migrated tables to live Supabase (`PGRST205: Could not find table in schema cache`), and `SMOKE_ADMIN_*` credentials are not configured.
 
 ---
 
@@ -265,30 +326,60 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 | 2 | **`products` & `product_variants` migrations** | Missing | Deploy DDL to live Supabase project. |
 | 3 | **`plans` migration** | Missing | Deploy DDL with frequency check constraint and foreign key to `products(id)`. |
 | 4 | **`quotation_templates` & lines migrations** | Missing | Deploy DDL with foreign keys to `plans` and `products`. |
-| 5 | **`subscriptions` & `subscription_lines` migrations** | Missing | Deploy DDL with `is_paused` boolean and unique `subscription_number`. |
-| 6 | **Postgres sequence for subscription numbers** | Missing | Provide sequence or RPC for sequential `SUB-YYYYMM-XXXX` IDs. |
-| 7 | **UNIQUE(subscription_id, billing_period_start)** | Missing | Needed for billing idempotency (Phase 5). |
+| 5 | **`subscriptions` & `subscription_lines` migrations** | Missing | Deploy DDL with `is_paused` boolean, `variant_adjustment`, `tax_rate_percent`, and unique `subscription_number`. |
+| 6 | **`tax_rules`, `discount_rules`, `discount_product_mappings` migrations** | Missing | Deploy DDL matching schema in reconciliation table. |
+| 7 | **Transactionally increment `used_count` in billing RPC** | Missing | Inside `persist_due_billing_invoice` RPC, atomically increment `discount_rules.used_count` for applied discounts. |
+| 8 | **Postgres sequence for subscription numbers** | Missing | Provide sequence or RPC for sequential `SUB-YYYYMM-XXXX` IDs. |
+| 9 | **UNIQUE(subscription_id, billing_period_start)** | Missing | Needed for billing idempotency. |
+
+---
+
+## Needed from Sanju
+
+1. **Add `is_paused` check in `supabaseBillingRepository.cjs`:**
+   In `listDueSubscriptionIds({ asOf, limit })`: add `.eq('is_paused', false)` to prevent billing paused subscriptions.
+2. **Calculation Order Confirmation:**
+   Confirm calculation order matches our verified parity: Subtotal -> Best Discount -> Tax on Discounted Net -> Total.
 
 ---
 
 ## Needed from Ravi
 
-1. **Quotation Templates UI:** Staff/admin can browse and select templates; prepopulates plan, product lines, and validity days.
-2. **Subscription Lifecycle Actions:** Render allowed action buttons per subscription status:
-   - Draft: `Send Quotation`, `Close`
-   - Quotation: `Confirm`, `Close`
-   - Confirmed: `Activate`, `Close`
-   - Active: `Close` (if allowed), `Pause` / `Resume` (if allowed), `Renew` (if allowed)
-   - Closed: Read-only, no actions
-3. **Customer Self-Service Portal:** Use `/api/v1/portal/subscriptions` and action endpoints (`/pause`, `/close`, `/renew`).
-4. **Cost Price Invariant:** Remember that `cost_price` is stripped for customer tokens; customers never see it.
+1. **Taxes UI:** Admin CRUD for tax rules (`GET/POST/PATCH /api/v1/taxes`). Staff read-only.
+2. **Discounts UI:** Admin CRUD for discount rules (`GET/POST/PATCH /api/v1/discounts`) with scope switcher (`subscription` vs `product`). Staff read-only.
+3. **Billing Preview:** Render next invoice preview modal/tab using `GET /api/v1/billing/preview?subscription_id=...` showing subtotal, discount, tax breakdown, and total.
 
 ---
 
-## Next Task
+## Next Tasks
 
-**Phase 4: Taxes, Discounts, and Discount-to-Product Mappings**
-- Tax rules CRUD (`GET /api/v1/taxes`, `POST /api/v1/taxes`, `PATCH /api/v1/taxes/:id`)
-- Discount rules CRUD (`GET /api/v1/discounts`, `POST /api/v1/discounts`, `PATCH /api/v1/discounts/:id`)
-- Scope support: `subscription` (whole subscription) vs `product` (product mappings)
-- Eligibility rules: `min_amount`, `min_quantity`, validity dates, `max_uses` caps
+- **Phase 5:** Invoices & actions (confirm, cancel, send, print), atomic billing persistence.
+- **Phase 6:** Payments & finance reporting dashboard.
+
+---
+
+## Ready-to-Paste Pull Request (Whole Branch: Phases 2-4)
+
+### Title:
+`feat(backend): complete phases 2-4 (products, plans, subscriptions, lifecycle, taxes, discounts, and billing preview)`
+
+### Description:
+```markdown
+## Summary
+This PR delivers the complete backend foundation for Phases 2, 3, and 4 on `feature/amarnath-products-plans`:
+
+- **Phase 2:** Products, product variants, recurring plans with availability & policy flags, pure money utility (`money.js`), pricing service.
+- **Phase 3:** Quotation templates, subscriptions with automatic sequence numbers (`SUB-YYYYMM-XXXXXX`), customer ownership isolation, full lifecycle transitions (`draft` -> `quotation` -> `confirmed` -> `active` -> `paused` / `closed`), plan-expired auto-close job, pure UTC date arithmetic (`dates.js`).
+- **Phase 4:**
+  - Reconciled subscription line pricing with billing engine: stored `unit_price` as base price and `variant_adjustment` separately to eliminate double-counting; snapshotted `tax_rate_percent` from `tax_rules`.
+  - Pure integer tax service (`tax.service.js`) with half-up rounding.
+  - Tax rules CRUD (`/api/v1/taxes`) with role-based access control (Admin write, Staff read-only, Customer 403).
+  - Pure discount service (`discount.service.js`) with date/threshold/scope eligibility, largest-saving selection (no stacking), and deterministic exact-cent line allocation.
+  - Discount rules CRUD (`/api/v1/discounts`) with product and subscription scopes and tamper-proof `used_count`.
+  - Deterministic invoice preview (`GET /api/v1/billing/preview`) with 100% mathematical parity against Sanju's `calculateInvoice`.
+
+## Verification & Test Results
+- **Test Suite:** 12 test files, 202 tests passed, 0 failures (1.37s execution).
+- **Parity Verified:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
+- **Security:** Standard `{ success, data, message, errors }` envelope, zero leaks of database error messages or stack traces.
+```

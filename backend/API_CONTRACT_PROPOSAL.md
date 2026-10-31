@@ -358,17 +358,97 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-014 | GET | /taxes | Any authenticated | — | `{ items: [TaxRule] }` | — | 401 | tax_rules | Proposed |
-| FR-014 | POST | /taxes | Admin | `{ name, rate, description }` | `{ tax: TaxRule }` | rate decimal string (percentage) | 403, 422 | tax_rules | Proposed |
-| FR-014 | PATCH | /taxes/:id | Admin | `{ name?, rate?, description? }` | `{ tax: TaxRule }` | At least one field | 403, 404, 422 | tax_rules | Proposed |
+| FR-014 | GET | /taxes | Admin, Staff | — (query: page, page_size, is_active) | `{ items: [TaxRule], pagination }` | Customer receives 403 Forbidden | 401, 403 | tax_rules | Implemented |
+| FR-014 | GET | /taxes/:id | Admin, Staff | — | `{ tax: TaxRule }` | Valid UUID; customer receives 403 | 401, 403, 404 | tax_rules | Implemented |
+| FR-014 | POST | /taxes | Admin | `{ name, rate_percent, description? }` | `{ tax: TaxRule }` | rate_percent 0-100 max 2 decimals | 400, 401, 403 | tax_rules | Implemented |
+| FR-014 | PATCH | /taxes/:id | Admin | `{ name?, rate_percent?, description?, is_active? }` | `{ tax: TaxRule }` | Partial update; deactivation instead of hard-delete | 400, 401, 403, 404 | tax_rules | Implemented |
+
+#### Implemented Tax Examples
+
+##### POST /api/v1/taxes (Admin)
+```json
+{
+  "name": "GST 18%",
+  "rate_percent": "18.00",
+  "description": "Standard Goods & Services Tax"
+}
+```
+Response (201):
+```json
+{
+  "success": true,
+  "data": {
+    "tax": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "GST 18%",
+      "rate_percent": "18.00",
+      "rate": "18.00",
+      "description": "Standard Goods & Services Tax",
+      "is_active": true,
+      "created_at": "2026-10-31T13:00:00.000Z",
+      "updated_at": "2026-10-31T13:00:00.000Z"
+    }
+  },
+  "message": "Tax rule created successfully",
+  "errors": null
+}
+```
 
 ### DISCOUNTS (FR-018, FR-019, FR-020, FR-021)
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-018 | GET | /discounts | Admin, Staff | — (query: page, page_size, active) | `{ items: [Discount], pagination }` | — | 401, 403 | discount_rules | Proposed |
-| FR-018, FR-019, FR-020 | POST | /discounts | Admin | `{ type, value, min_amount, min_quantity, start_date, end_date, max_uses, scope, product_ids }` | `{ discount: Discount }` | type ∈ {fixed,percentage}; value decimal string; scope ∈ {product,subscription}; product_ids required when scope=product | 403, 422 | discount_rules, discount_product_mappings | Proposed |
-| FR-018 | PATCH | /discounts/:id | Admin | Partial discount fields | `{ discount: Discount }` | At least one field; cannot reduce max_uses below used_count | 403, 404, 422 | discount_rules | Proposed |
+| FR-018 | GET | /discounts | Admin, Staff | — (query: page, page_size, is_active) | `{ items: [Discount], pagination }` | Customer receives 403 Forbidden | 401, 403 | discount_rules | Implemented |
+| FR-018 | GET | /discounts/:id | Admin, Staff | — | `{ discount: Discount }` | Valid UUID; customer receives 403 | 401, 403, 404 | discount_rules, discount_product_mappings | Implemented |
+| FR-018, FR-019, FR-020 | POST | /discounts | Admin | `{ name, type, value, min_amount?, min_quantity?, start_date?, end_date?, max_uses?, scope?, product_ids? }` | `{ discount: Discount }` | percentage 0<v<=100, fixed v>0; scope=product requires product_ids; used_count not client-writable | 400, 401, 403 | discount_rules, discount_product_mappings | Implemented |
+| FR-018 | PATCH | /discounts/:id | Admin | Partial discount fields | `{ discount: Discount }` | Cannot lower max_uses below used_count; used_count not writable; deactivate instead of delete | 400, 401, 403, 404 | discount_rules, discount_product_mappings | Implemented |
+
+#### Implemented Discount Examples
+
+##### POST /api/v1/discounts (Admin)
+```json
+{
+  "name": "Enterprise 10% Promo",
+  "type": "percentage",
+  "value": "10.00",
+  "scope": "subscription",
+  "min_amount": "500.00",
+  "min_quantity": 1,
+  "start_date": "2026-01-01",
+  "end_date": "2026-12-31",
+  "max_uses": 50
+}
+```
+Response (201):
+```json
+{
+  "success": true,
+  "data": {
+    "discount": {
+      "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      "name": "Enterprise 10% Promo",
+      "type": "percentage",
+      "kind": "percentage",
+      "value": "10.00",
+      "scope": "subscription",
+      "min_amount": "500.00",
+      "min_quantity": 1,
+      "start_date": "2026-01-01",
+      "valid_from": "2026-01-01",
+      "end_date": "2026-12-31",
+      "valid_until": "2026-12-31",
+      "max_uses": 50,
+      "used_count": 0,
+      "is_active": true,
+      "product_ids": [],
+      "created_at": "2026-10-31T13:00:00.000Z",
+      "updated_at": "2026-10-31T13:00:00.000Z"
+    }
+  },
+  "message": "Discount rule created successfully",
+  "errors": null
+}
+```
 
 ### QUOTATION TEMPLATES (FR-009)
 
@@ -507,6 +587,46 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
 | FR-013, FR-017 | POST | /billing/run | Admin | `{ target_date? }` | `{ invoices_created: number, errors: [] }` | Protected trigger; idempotent via UNIQUE(subscription_id, billing_period_start) | 403 | subscriptions, invoices, invoice_lines, discount_redemptions | Proposed |
+| FR-013, FR-014, FR-018 | GET | /billing/preview | Admin, Staff | — (query: `subscription_id`) | `{ invoice_preview: InvoicePreview }` | Requires active subscription; writes NOTHING (no invoice or used_count change) | 400, 401, 403, 404, 409 | subscriptions, subscription_lines, discount_rules | Implemented (addition) |
+
+#### Implemented Billing Preview Example
+
+##### GET /api/v1/billing/preview?subscription_id=... (Admin, Staff)
+Response (200):
+```json
+{
+  "success": true,
+  "data": {
+    "invoice_preview": {
+      "subscription_id": "66666666-6666-4666-8666-666666666661",
+      "customer_id": "a0000000-0000-4000-8000-000000000003",
+      "preview_date": "2026-11-01",
+      "lines": [
+        {
+          "product_id": "11111111-1111-4111-8111-111111111111",
+          "description": "Brightloop Suite (Odoo Edition)",
+          "quantity": 3,
+          "unit_price": "1560.00",
+          "base_unit_price": "1000.00",
+          "variant_adjustment": "560.00",
+          "tax_rate_percent": "18.00",
+          "net": "4680.00",
+          "discount_allocated": "468.00",
+          "tax": "758.16",
+          "total": "4970.16"
+        }
+      ],
+      "subtotal": "4680.00",
+      "discount_total": "468.00",
+      "tax_total": "758.16",
+      "total": "4970.16",
+      "selected_discount_id": "disc-10"
+    }
+  },
+  "message": "Billing preview generated successfully",
+  "errors": null
+}
+```
 
 ### INVOICES (FR-013, FR-015, FR-016)
 
