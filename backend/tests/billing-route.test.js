@@ -14,7 +14,8 @@ describe('Billing admin route integration',()=>{
     const local=express();local.use(express.json());
     let created=0;
     local.use('/billing',billing.createBillingRouter({
-      adminGuard:(_req,_res,next)=>next(),
+      authMiddleware:(_req,_res,next)=>next(),
+      roleMiddleware:(_req,_res,next)=>next(),
       repositoryFactory:()=>{created++;return {};}
     }));
     const vars=['BILLING_TAX_MODE','BILLING_DISCOUNT_STACKING','BILLING_ROUNDING'];
