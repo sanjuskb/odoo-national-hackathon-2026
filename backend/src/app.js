@@ -1,51 +1,38 @@
 const express = require('express');
 const cors = require('cors');
-const {createBillingRouter}=require('./routes/billing.cjs');
+const helmet = require('helmet');
+const { env } = require('./config/env');
+const requestLogger = require('./middleware/requestLogger');
+const notFound = require('./middleware/notFound');
+const errorHandler = require('./middleware/errorHandler');
+const apiRoutes = require('./routes');
 
 const app = express();
 
 // ---------------------------------------------------------------------------
-// Middleware
+// Security & Foundation Middleware
 // ---------------------------------------------------------------------------
-app.use(express.json());
+app.use(helmet());
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: env.CORS_ORIGIN || 'http://localhost:5173',
   })
 );
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
+app.use(express.json({ limit: '100kb' }));
 
-app.use('/api/v1/billing',createBillingRouter());
-
-// Health check — GET /api/v1/health
-app.get('/api/v1/health', (_req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'ok',
-      uptime: process.uptime(),
-      timestamp: new Date().toISOString(),
-    },
-    message: 'OK',
-    errors: null,
-  });
-});
+app.use(requestLogger);
 
 // ---------------------------------------------------------------------------
-// Fallback 404
+// API Routes
 // ---------------------------------------------------------------------------
-app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    data: null,
-    message: 'Resource not found',
-    errors: null,
-  });
-});
+app.use('/api/v1', apiRoutes);
+
+// ---------------------------------------------------------------------------
+// Fallback 404 & Global Error Handling
+// ---------------------------------------------------------------------------
+app.use(notFound);
+app.use(errorHandler);
 
 module.exports = app;
-
