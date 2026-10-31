@@ -1,0 +1,9 @@
+# Suggested review owners. Auto-request/enforcement depends on GitHub repository settings.
+* @sanjuskb
+/frontend/ @donnyravi-alt
+/backend/ @amarnathgaddam75
+/database/ @harsha-1706
+/docs/architecture/ @donnyravi-alt @sanjuskb
+/docs/integration/ @donnyravi-alt @amarnathgaddam75
+/docs/official/ @sanjuskb
+/.github/ @sanjuskb
