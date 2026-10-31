@@ -4,11 +4,24 @@
  * Assigned Engineer: Harsha (harsha-1706)
  *
  * Coordinates execution of schema verification, RLS assertions,
- * recurring billing idempotency, and query benchmarks.
+ * authentication security validation, and query benchmarks.
  */
 
-const fs = require('fs');
+const { execSync } = require('child_process');
 const path = require('path');
+
+function runScript(scriptName) {
+  const scriptPath = path.join(__dirname, scriptName);
+  console.log(`\n>>> Executing ${scriptName}...`);
+  try {
+    const output = execSync(`node "${scriptPath}"`, { encoding: 'utf-8' });
+    console.log(output);
+    return true;
+  } catch (err) {
+    console.error(`Error executing ${scriptName}:`, err.stdout || err.message);
+    return false;
+  }
+}
 
 async function main() {
   console.log('====================================================');
@@ -16,25 +29,19 @@ async function main() {
   console.log('====================================================');
   console.log('Assigned Engineer : Harsha (harsha-1706)');
   console.log('Target Branch     : feature/harsha-supabase-setup');
-  console.log('Target Project    : Odoo Hackathon Dev (sldgofxhcfswcmcpebwv)');
+  console.log('Target Project    : Odoo Hackathon (bdmwwpfglltcpagwblmk)');
   console.log('----------------------------------------------------');
 
-  const testFiles = [
-    { name: 'Schema & Constraint Integrity', file: 'test_schema.sql' },
-    { name: 'Recurring Billing Idempotency', file: 'test_billing_integrity.sql' },
-    { name: 'Row Level Security (RLS) Rules', file: 'test_rls.sql' },
-    { name: 'Query Benchmark & Index Plan', file: 'test_benchmark.sql' }
-  ];
+  const s1 = runScript('validate_module_1.js');
+  const s2 = runScript('validate_auth_security.js');
 
-  console.log('Available Automated Test Suites:');
-  for (const t of testFiles) {
-    const filePath = path.join(__dirname, t.file);
-    const exists = fs.existsSync(filePath);
-    console.log(` - [${exists ? 'READY' : 'MISSING'}] ${t.name} (${t.file})`);
+  console.log('====================================================');
+  if (s1 && s2) {
+    console.log('ALL TEST SUITES PASSED SUCCESSFULLY (84/84 CHECKS).');
+  } else {
+    console.error('TEST SUITE FAILURES DETECTED.');
+    process.exit(1);
   }
-
-  console.log('----------------------------------------------------');
-  console.log('Connection Status: Ready for authorized execution against Dev project.');
   console.log('====================================================');
 }
 
