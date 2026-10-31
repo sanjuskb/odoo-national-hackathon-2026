@@ -73,6 +73,7 @@ jobs:
           else
             echo "::notice::Sanju billing module not yet integrated; billing tests not run"
           fi
+
   pr-branch-flow:
     name: Branch workflow gate
     if: github.event_name == 'pull_request'
@@ -82,15 +83,10 @@ jobs:
         env:
           SOURCE: ${{ github.head_ref }}
           BASE: ${{ github.base_ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
         run: |
           if [[ "$BASE" == "main" && "$SOURCE" != "develop" ]]; then
-            if [[ "$SOURCE" == "chore/main-release-gate-bootstrap" && "$PR_NUMBER" == "23" ]]; then
-              echo "::notice::One-time CI bootstrap PR #23; no feature code released."
-            else
-              echo "::error::Release PRs must originate from develop; feature work goes to develop first."
-              exit 1
-            fi
+            echo "::error::Release PRs must originate from develop; feature work goes to develop first."
+            exit 1
           fi
           echo "Branch workflow is valid."
