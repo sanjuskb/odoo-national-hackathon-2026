@@ -1,45 +1,15 @@
-# System Architecture & Technical Strategy
+# Architecture — Subscription Management System
 
-> **NOTE:** Architecture decisions will be finalized upon release of the official problem statement. This document establishes architectural principles and integration boundaries.
+> Updated after official PS release (31 October 2026). The generic pre-PS diagram in the previous version is superseded by the [architecture proposal](architecture/system-architecture-proposal.md). Ravi coordinates the overall system architecture; all module owners must approve interfaces.
 
----
+**Start here:**
+- [Proposed full-stack topology](architecture/system-architecture-proposal.md)
+- [Recurring billing invariants and concurrency](architecture/billing-engine-design.md)
+- [Database/ER proposal (Harsha review)](architecture/database-design-proposal.md)
+- [API contract (Ravi + Amarnadh review)](integration/api-contracts.md)
+- [Contract freeze and handoff](integration/CONTRACT_FREEZE_AND_HANDOFF.md)
+- [AI decision — not required by PS](architecture/ai-ml-decision.md)
 
-## 1. Architectural Principles
-- **Separation of Concerns:** Clear boundary between client presentation, application server/business logic, and persistent storage.
-- **Contract-First Communication:** Frontend and backend interact via well-defined RESTful or RPC API contracts documented in `docs/API_CONTRACTS.md`.
-- **Fail-Safe Design:** Defensive error handling, graceful UI fallback states, and structured server-side logging.
-- **Security-by-Design:** No plaintext secrets; all sensitive credentials isolated in environment variables.
+**Provisional stack based on team decision:** React/TypeScript frontend, Node.js/Express business API, Supabase PostgreSQL/Auth with RLS, optional AI only if justified.
 
-## 2. High-Level System Overview
-```text
-+-------------------------------------------------------+
-|                    Client Layer                       |
-|           Frontend UI (SPA / SSR / Mobile)            |
-|         Owner: Ravi (feature/ravi-*)                  |
-+---------------------------+---------------------------+
-                            |
-                   HTTPS / JSON API
-                            |
-+---------------------------v---------------------------+
-|                  Application Layer                    |
-|      API Gateway / Business Services / Auth           |
-|      Owner: Amarnadh (feature/amarnadh-*)             |
-+---------------------------+---------------------------+
-                            |
-                     Database Driver
-                            |
-+---------------------------v---------------------------+
-|                   Data Persistence                    |
-|          Relational / Document / Cache DB             |
-|         Owner: Harsha (feature/harsha-*)              |
-+-------------------------------------------------------+
-```
-
-## 3. Technology Stack Selection (To Be Determined)
-- **Frontend Stack:** TBD (React / Vue / Next.js / Tailwind CSS)
-- **Backend Stack:** TBD (Python/FastAPI/Odoo framework / Node.js Express)
-- **Database Engine:** TBD (PostgreSQL / MySQL)
-- **Testing Frameworks:** Unit tests, integration harnesses, API assertions.
-
-## 4. Integration & Coordination
-- System-wide architecture and module contracts overseen by Sanju (`sanjuskb`).
+**System boundary:** browser roles and invoice amounts are never authoritative; server validates access and billing totals; database uniqueness and atomic transactions prevent duplicate invoices. Do not present this architecture as deployed or tested until verified.
