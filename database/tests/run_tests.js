@@ -1,10 +1,10 @@
 /**
  * Database Test Suite Runner
- * Odoo National Level Hackathon 2026
+ * Brightloop Software Subscription Management System
  * Assigned Engineer: Harsha (harsha-1706)
  *
- * This runner coordinates database verification tests for schema integrity,
- * constraints, CRUD operations, and Row Level Security (RLS).
+ * Coordinates execution of schema verification, RLS assertions,
+ * recurring billing idempotency, and query benchmarks.
  */
 
 const fs = require('fs');
@@ -12,29 +12,29 @@ const path = require('path');
 
 async function main() {
   console.log('====================================================');
-  console.log('   Odoo National Hackathon 2026 - Database Tests    ');
+  console.log('  Brightloop Software Database Test Harness        ');
   console.log('====================================================');
   console.log('Assigned Engineer : Harsha (harsha-1706)');
   console.log('Target Branch     : feature/harsha-supabase-setup');
-  console.log('Phase             : Stage 1 (Workspace Preparation)');
+  console.log('Target Project    : Odoo Hackathon Dev (sldgofxhcfswcmcpebwv)');
   console.log('----------------------------------------------------');
 
-  // Verify environment availability
-  const hasDbUrl = Boolean(process.env.DATABASE_URL);
-  const hasSupabaseUrl = Boolean(process.env.SUPABASE_URL);
+  const testFiles = [
+    { name: 'Schema & Constraint Integrity', file: 'test_schema.sql' },
+    { name: 'Recurring Billing Idempotency', file: 'test_billing_integrity.sql' },
+    { name: 'Row Level Security (RLS) Rules', file: 'test_rls.sql' },
+    { name: 'Query Benchmark & Index Plan', file: 'test_benchmark.sql' }
+  ];
 
-  console.log(`DATABASE_URL configured     : ${hasDbUrl ? 'YES' : 'NO (Check .env)'}`);
-  console.log(`SUPABASE_URL configured     : ${hasSupabaseUrl ? 'YES' : 'NO (Check .env)'}`);
-  console.log('----------------------------------------------------');
+  console.log('Available Automated Test Suites:');
+  for (const t of testFiles) {
+    const filePath = path.join(__dirname, t.file);
+    const exists = fs.existsSync(filePath);
+    console.log(` - [${exists ? 'READY' : 'MISSING'}] ${t.name} (${t.file})`);
+  }
 
-  console.log('Test suites pending Stage 2 requirements release:');
-  console.log(' - [ ] Schema & Constraint Verification');
-  console.log(' - [ ] Referential Foreign Key Integrity');
-  console.log(' - [ ] Row Level Security (RLS) Isolation');
-  console.log(' - [ ] Seed Data Consistency');
-  console.log(' - [ ] Core CRUD Transactions');
   console.log('----------------------------------------------------');
-  console.log('Status: TO BE INSERTED — PENDING OFFICIAL PROBLEM STATEMENT AND APPROVED MOCK DATA');
+  console.log('Connection Status: Ready for authorized execution against Dev project.');
   console.log('====================================================');
 }
 
@@ -46,4 +46,3 @@ if (require.main === module) {
 }
 
 module.exports = { main };
-

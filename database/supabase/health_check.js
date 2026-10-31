@@ -1,10 +1,10 @@
 /**
  * Supabase & PostgreSQL Connection Health Check
- * Odoo National Level Hackathon 2026
+ * Brightloop Software Subscription Management System
  * Assigned Engineer: Harsha (harsha-1706)
  *
  * Safe, non-destructive health check script.
- * Validates environment configuration without logging or leaking secret credentials.
+ * Validates development project target (sldgofxhcfswcmcpebwv) and connection readiness.
  */
 
 const fs = require('fs');
@@ -12,11 +12,12 @@ const path = require('path');
 
 function checkEnvironment() {
   console.log('====================================================');
-  console.log('       Supabase Database Connectivity Check         ');
+  console.log('    Brightloop Database Connection Health Check     ');
   console.log('====================================================');
   console.log('Workspace Directory : E:\\Projects\\Odoo-Team');
   console.log('Target Branch       : feature/harsha-supabase-setup');
-  console.log('Engineer            : Harsha (harsha-1706)');
+  console.log('Target Project      : Odoo Hackathon Dev (sldgofxhcfswcmcpebwv)');
+  console.log('Shared Project      : Odoo Hackathon (bdmwwpfglitcpagwblmk) [PROTECTED]');
   console.log('----------------------------------------------------');
 
   const envPath = path.resolve(__dirname, '../../.env');
@@ -26,7 +27,7 @@ function checkEnvironment() {
   const hasEnvExample = fs.existsSync(envExamplePath);
 
   console.log(`[Config] .env.example exists : ${hasEnvExample ? 'YES' : 'NO'}`);
-  console.log(`[Config] Local .env exists   : ${hasEnv ? 'YES' : 'NO (Create from .env.example)'}`);
+  console.log(`[Config] Local .env exists   : ${hasEnv ? 'YES' : 'NO'}`);
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const hasAnonKey = Boolean(process.env.SUPABASE_ANON_KEY);
@@ -40,12 +41,13 @@ function checkEnvironment() {
   console.log(`DATABASE_URL present        : ${hasDatabaseUrl ? 'YES (Masked)' : 'NO'}`);
   console.log('----------------------------------------------------');
 
-  if (!supabaseUrl && !hasDatabaseUrl) {
-    console.log('Status: Stage 1 Workspace Preparation Complete.');
-    console.log('Credentials will be supplied when Supabase project is linked in Stage 2.');
-  } else {
-    console.log('Status: Credentials detected. Ready for Stage 2 connectivity verification.');
+  if (supabaseUrl && supabaseUrl.includes('bdmwwpfglitcpagwblmk')) {
+    console.error('CRITICAL WARNING: Configuration is pointing to SHARED project (bdmwwpfglitcpagwblmk)!');
+    console.error('Mandate requires development against dev project (sldgofxhcfswcmcpebwv).');
+  } else if (supabaseUrl && supabaseUrl.includes('sldgofxhcfswcmcpebwv')) {
+    console.log('Verification: Target project correctly set to Odoo Hackathon Dev (sldgofxhcfswcmcpebwv).');
   }
+
   console.log('====================================================');
 }
 
@@ -54,4 +56,3 @@ if (require.main === module) {
 }
 
 module.exports = { checkEnvironment };
-
