@@ -1,0 +1,42 @@
+# ==============================================================================
+# Model Hyperparameter & Architecture Configuration Template
+# Odoo National Hackathon 2026
+# ==============================================================================
+# This file manages model hyperparameters, feature mappings, and fallbacks.
+# Specific values will be finalized once the problem statement is released.
+# ==============================================================================
+
+model:
+  name: "provisional_heuristic_model"
+  version: "0.1.0-alpha"
+  type: "heuristic"                  # heuristic | linear | tree | ensemble | neural | api
+  task: "provisional_task"           # classification | regression | clustering | ranking
+
+# Hyperparameters (Example structure; finalize after PS release)
+hyperparameters:
+  # TODO: FINALIZE AFTER OFFICIAL PROBLEM STATEMENT
+  n_estimators: 100
+  max_depth: 6
+  learning_rate: 0.1
+  random_state: 42
+
+# Feature Definitions
+features:
+  # TODO: FINALIZE AFTER OFFICIAL PROBLEM STATEMENT
+  numerical:
+    - name: "feature_a"
+      default: 0.0
+      min_value: -1000.0
+      max_value: 100000.0
+  categorical:
+    - name: "feature_b"
+      default: "UNKNOWN"
+      allowed_values: ["category_1", "category_2", "UNKNOWN"]
+
+# Fallback Configuration
+fallback:
+  enabled: true
+  strategy: "deterministic_baseline" # deterministic_baseline | historical_mode | constant
+  default_prediction: "PROVISIONAL_FALLBACK"
+  default_confidence: 0.50
+

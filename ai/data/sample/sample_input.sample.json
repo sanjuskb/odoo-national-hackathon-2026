@@ -1,0 +1,14 @@
+{
+  "_comment": "SYNTHETIC TEST DATA — NOT REAL-WORLD DATA",
+  "request_id": "test-req-001-synthetic",
+  "entity_id": "synthetic-entity-001",
+  "features": {
+    "feature_a": 10.5,
+    "feature_b": "category_1"
+  },
+  "options": {
+    "explain": true,
+    "timeout_ms": 3000
+  }
+}
+
