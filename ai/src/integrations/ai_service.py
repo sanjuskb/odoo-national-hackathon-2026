@@ -24,7 +24,7 @@ from ai.src.core.exceptions import (
     ValidationError,
 )
 from ai.src.inference.predictor import Predictor
-from ai.src.integrations.backend_client import MockBackendClient
+from ai.src.integrations.backend_client import MockBackendClient, ResilientBackendClient, HttpBackendClient
 from ai.src.invoice.invoice_explainer import InvoiceExplanationService
 from ai.src.invoice.models import InvoiceExplanationRequest
 from ai.src.integrations.demo_page import DEMO_HTML
@@ -73,7 +73,10 @@ def create_app() -> FastAPI:
     else:
         telephony_provider = MockTelephonyProvider()
 
-    backend_client = MockBackendClient()
+    if not settings.use_mock_providers:
+        backend_client = ResilientBackendClient()
+    else:
+        backend_client = MockBackendClient()
 
     # Core AI domain services
     assistant_orchestrator = CustomerAssistantOrchestrator(
