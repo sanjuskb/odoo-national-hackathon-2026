@@ -3,7 +3,7 @@
 This PR is a real proposed connection layer, **not a verified live financial workflow**. Requires Harsha's schema and RPC from draft PR #15 to be approved, applied and tested first.
 
 ## Route
-`POST /api/v1/billing/run` with an actual Supabase user bearer JWT. The backend fetches the authenticated user through Supabase Auth, then checks the stored role via server-only credentials. Only `admin` may trigger billing. Missing JWT = 401; insufficient role = 403.
+`POST /api/v1/billing/run` with an actual Supabase user bearer JWT. The backend reuses Amarnadh's existing `authenticate` and `requireRole('admin')` middleware, with the verified role read from Supabase Auth app_metadata. Only an authenticated `admin` may trigger billing. Missing JWT = 401; insufficient role = 403.
 
 ## Server configuration
 - `SUPABASE_URL` (project origin)
@@ -36,3 +36,9 @@ Backend route tests prove that the endpoint requires authentication and approved
 - **Ravi:** frontend `/api/v1/billing/run` contract if a manual admin trigger will appear.
 
 Do not merge until reviewed, or claim the route delivers unattended automatic billing: it is an admin-triggered batch endpoint.
+
+## Phase 1 compatibility (31 October)
+
+This branch was reconciled with Amarnadh's newly merged Express Phase 1 routes and Supabase Admin SDK. The billing endpoint is mounted from `backend/src/routes/index.js`, *not* an obsolete pre-Phase-1 `app.js` route. The separate billingAdmin middleware is not included in the final diff; existing `authenticate` and `requireRole('admin')` enforce the gateway.
+
+Harsha must ensure the approved `profiles.role` mirrors server-owned `auth.app_metadata.role` so PostgreSQL RLS and Express authorization cannot disagree. Draft DB PR #15 includes the proposed metadata-sync trigger but has not been applied.
