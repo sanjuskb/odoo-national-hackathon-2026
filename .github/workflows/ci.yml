@@ -38,10 +38,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Check module when implemented
+      - name: Install dependencies
         shell: bash
-        env:
-          CI: 'true'
         run: |
           module="${{ matrix.module }}"
           if [ ! -f "$module/package.json" ]; then
@@ -54,6 +52,21 @@ jobs:
           fi
           cd "$module"
           npm ci --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        if: matrix.module == 'frontend'
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint, build, and test module
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          module="${{ matrix.module }}"
+          if [ ! -f "$module/package.json" ]; then
+            exit 0
+          fi
+          cd "$module"
           npm run --if-present lint
           npm run --if-present build
           npm run test
