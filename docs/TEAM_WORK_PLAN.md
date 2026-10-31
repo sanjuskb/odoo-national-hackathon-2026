@@ -1,14 +1,16 @@
 # Team Work Plan & Collaboration Protocols
 
+> **31 October update:** Official problem: Subscription Management System. The canonical [requirements](requirements/requirements.md), [new developer readiness](team/DEVELOPMENT_READINESS.md), and [task board](team/task-board.md) replace the previous pre-release schedule assumptions.
+
 ## 1. Team Allocation & Responsibilities
 
 | Member | GitHub Username | Hackathon Role | Focus Area |
 |---|---|---|---|
-| **Sanju** | `sanjuskb` | Team Lead & Architect | System architecture, task coordination, code reviews, integration into `develop` & `main` |
-| **Ravi** | `donnyravi-alt` | Frontend Engineer | UI/UX implementation, component development, user interaction, demo presentation |
+| **Sanju** | `sanjuskb` | Team Lead, Integration & Demo | Team decisions, integration, review, demo/presentation and optional justified AI |
+| **Ravi** | `donnyravi-alt` | System Architecture Lead + Frontend Engineer | Architecture coordination, UI/UX, API client, frontend implementation |
 | **Amarnadh** | `amarnathgaddam75` | Backend Engineer | Business logic, API endpoints, server services, external integrations |
 | **Harsha** | `harsha-1706` | Database Engineer | Schema design, migrations, query optimization, data seeding & integrity |
-| **Vivek Pathak** | `vivp-odoo` | Evaluator | Evaluation, code review, progress tracking (Read access) |
+| **Vivek Pathak** | `vivp-odoo` | Evaluator | Evaluation/collaborator access per organizer; personal-repo collaborators may have write access; protect integration branches |
 
 ---
 
