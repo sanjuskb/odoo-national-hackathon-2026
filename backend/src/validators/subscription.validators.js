@@ -105,3 +105,4 @@ module.exports = {
   transitionSubscriptionSchema,
   subscriptionLineInputSchema,
 };
+
