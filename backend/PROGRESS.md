@@ -85,7 +85,7 @@
 | ├ Billing preview endpoint | `GET /api/v1/billing/preview` (admin/staff 200, customer 403, writes NOTHING to DB, rejects closed subs with 409) | ✅ Done |
 | ├ Automated tests | 202/202 Vitest tests passing across whole suite (12 test files, 0 failures, 1.37s) | ✅ Done |
 | ├ Real smoke check | Skipped with reason: tables `public.tax_rules`, `public.discount_rules` do not exist in live Supabase (`PGRST205`) and `SMOKE_ADMIN_*` not set | ⚠️ Skipped |
-| **Phase 5** | Billing engine: idempotent invoice generation & persistence | ⬜ Next task |
+| **Phase 5** | Invoices & actions (confirm, cancel, send, print) and payment ledger | 🔄 In Progress |
 | **Phase 5** | Billing engine: idempotent invoice generation | ⬜ Not started |
 | **Phase 6** | Invoices & actions (confirm, cancel, send, print) | ⬜ Not started |
 | **Phase 7** | Payments & finance reporting dashboard | ⬜ Not started |
@@ -312,9 +312,11 @@ Source: `docs/architecture/database-design-proposal.md`, `docs/requirements/requ
 ## Temporary or Unverified Items
 
 1. **Role Store:** User roles continue using `app_metadata.role` fallback until Harsha provides the `profiles` table.
-2. **Subscription Number Sequence:** Temporary random generation with 5 retries; replace with a PostgreSQL sequence once Harsha creates it.
-3. **Real Supabase DB Tables Missing:**
-   - Real smoke checks skipped because Harsha has not yet migrated tables to live Supabase (`PGRST205: Could not find table in schema cache`), and `SMOKE_ADMIN_*` credentials are not configured.
+2. **Real Supabase Auth Verified Live (Phase 1):** Real registration, login, and token verification succeeded against live Supabase project (`bdmwwpfglltcpagwblmk`).
+3. **Subscription Number Sequence:** Temporary random generation with 5 retries; replace with a PostgreSQL sequence once Harsha creates it.
+4. **Real Supabase DB Domain Tables Missing:**
+   - Real smoke checks for domain tables skipped because Harsha has not yet migrated domain tables to live Supabase (`PGRST205: Could not find table in schema cache`), and `SMOKE_ADMIN_*` credentials are not configured.
+5. **Vitest Mocked Test Suite:** Automated unit/integration tests run via the fast in-memory mock harness (`tests/mocks/supabase.mock.js`) for CI determinism (202/202 pass).
 
 ---
 
