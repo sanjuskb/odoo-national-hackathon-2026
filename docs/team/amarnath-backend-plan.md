@@ -6,7 +6,7 @@
 1. Health, registration/auth/role/ownership and admin staff creation.
 2. Products/variants and plans (frequencies, policy settings).
 3. Quote templates, subscription unique IDs/lines and valid lifecycle transitions.
-4. Recurring billing service: atomic invoice+lines+discount redemption+next-billing update, unique subscription/period to ensure idempotency.
+4. Integrate **Sanju-owned invoice-generation and recurrence service** into protected Express API; collaborate with Harsha for atomic invoice+lines+discount-redemption+next-billing persistence, unique subscription/period and retry safety.
 5. Tax/discount calculation and invoice confirm/cancel/send/print actions.
 6. Record payments and compute invoice balance/overdue.
 7. Paginated finance dashboard API with filtering.

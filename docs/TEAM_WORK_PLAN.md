@@ -6,9 +6,9 @@
 
 | Member | GitHub Username | Hackathon Role | Focus Area |
 |---|---|---|---|
-| **Sanju** | `sanjuskb` | Team Lead, Integration & Demo | Team decisions, integration, review, demo/presentation and optional justified AI |
+| **Sanju** | `sanjuskb` | Team Lead, Integration & Demo | Deterministic invoice generation and billing periods, team decisions, integration, optional AI and demo |
 | **Ravi** | `donnyravi-alt` | System Architecture Lead + Frontend Engineer | Architecture coordination, UI/UX, API client, frontend implementation |
-| **Amarnadh** | `amarnathgaddam75` | Backend Engineer | Business logic, API endpoints, server services, external integrations |
+| **Amarnadh** | `amarnathgaddam75` | Backend Engineer | Express routes/controllers, auth, payments/reports and integration of Sanju invoice service |
 | **Harsha** | `harsha-1706` | Database Engineer | Schema design, migrations, query optimization, data seeding & integrity |
 | **Vivek Pathak** | `vivp-odoo` | Evaluator | Evaluation/collaborator access per organizer; personal-repo collaborators may have write access; protect integration branches |
 

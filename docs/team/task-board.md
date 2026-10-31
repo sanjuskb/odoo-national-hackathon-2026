@@ -9,7 +9,7 @@
 | P0 | Auth, role and staff-only route | Amarnadh | Auth/schema | 401/403 tests |
 | P0 | Products/variants/plans/discounts | Ravi + Amarnadh | Schema | UI/API test |
 | P0 | Quotations and subscription transitions | Amarnadh + Ravi | Schema | End-to-end test |
-| P0 | Idempotent recurring billing and invoice actions | Amarnadh + Harsha | Subscription | Repeat/concurrency test |
+| P0 | Deterministic invoice generation and billing periods | **Sanju primary**; Amarnadh Express integration; Harsha atomic persistence and RLS | Approved policies and invoice schema | Exact-money tests, persisted invoice and duplicate/concurrent-run proof |
 | P0 | Payments and finance dashboard | Amarnadh + Ravi | Invoices | Reconciled totals |
 | P0 | Customer-only portal | Ravi | Authorization | Two-user isolation |
 | P0 | Thousands-of-records performance benchmark | Harsha + Ravi | Reports | Timings <2s |

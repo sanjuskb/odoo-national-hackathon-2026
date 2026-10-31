@@ -1,0 +1,12 @@
+{
+  "name": "brightloop-deterministic-billing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sanju-owned deterministic invoice math and recurrence; no DB credentials",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
