@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const {createBillingRouter}=require('./routes/billing.cjs');
 
 const app = express();
 
@@ -17,6 +18,8 @@ app.use(
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+
+app.use('/api/v1/billing',createBillingRouter());
 
 // Health check — GET /api/v1/health
 app.get('/api/v1/health', (_req, res) => {
