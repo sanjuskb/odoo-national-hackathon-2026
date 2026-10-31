@@ -43,10 +43,11 @@ class AIAssistanceCallService:
         self.backend = backend_client or MockBackendClient()
         self.settings = get_settings()
 
-        # In-memory tracking of processed events and call records
+        # In-memory tracking of processed events, call records, and audio payloads
         self._processed_events: Set[str] = set()
         self._subscription_calls: Dict[str, str] = {}  # subscription_id -> call_id
         self._call_records: Dict[str, AssistanceCallRecord] = {}
+        self._call_audio: Dict[str, bytes] = {}
 
     @staticmethod
     def _mask_phone(phone: str) -> str:
@@ -145,6 +146,8 @@ class AIAssistanceCallService:
         try:
             tts_res = self.tts.synthesize(TTSRequest(text=dialogue_script))
             audio_synthesized = len(tts_res.audio_bytes) > 0
+            if audio_synthesized:
+                self._call_audio[call_id] = tts_res.audio_bytes
             logger.info("Synthesized assistance call audio: duration=%.2fs", tts_res.duration_seconds)
         except ProviderError as exc:
             logger.warning("Murf TTS synthesis failed (%s); proceeding with text-to-speech fallback", str(exc))
@@ -178,6 +181,7 @@ class AIAssistanceCallService:
             audio_synthesized=audio_synthesized,
             is_simulated=tel_record.is_simulated,
             failure_reason=tel_record.failure_reason,
+            metadata={"has_audio": audio_synthesized},
         )
 
         # Mark idempotency key & register
@@ -186,6 +190,10 @@ class AIAssistanceCallService:
         self._call_records[call_id] = record
 
         return record
+
+    def get_call_audio(self, call_id: str) -> Optional[bytes]:
+        """Fetch raw audio bytes synthesized for a call."""
+        return self._call_audio.get(call_id)
 
     def retry_call(self, call_id: str) -> AssistanceCallRecord:
         """
@@ -230,4 +238,3 @@ class AIAssistanceCallService:
     def get_call_record(self, call_id: str) -> Optional[AssistanceCallRecord]:
         """Fetch audit record for a given call ID."""
         return self._call_records.get(call_id)
-

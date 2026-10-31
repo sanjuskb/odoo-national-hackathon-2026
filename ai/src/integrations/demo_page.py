@@ -18,6 +18,7 @@ DEMO_HTML = """<!DOCTYPE html>
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --success: #10b981;
+      --warning: #f59e0b;
       --danger: #ef4444;
       --accent: #06b6d4;
     }
@@ -26,12 +27,16 @@ DEMO_HTML = """<!DOCTYPE html>
     .container { max-width: 1200px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
     h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 8px; }
-    .badge { font-size: 0.75rem; padding: 4px 8px; border-radius: 9999px; background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+    .badge-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { font-size: 0.72rem; padding: 4px 10px; border-radius: 9999px; font-weight: 500; border: 1px solid; }
+    .badge-live { background: rgba(16, 185, 129, 0.15); color: var(--success); border-color: var(--success); }
+    .badge-mock { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border-color: var(--border); }
+    .badge-warn { background: rgba(245, 158, 11, 0.15); color: var(--warning); border-color: var(--warning); }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     @media(max-width: 900px) { .grid { grid-template-columns: 1fr; } }
     .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
     .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-    .selector-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+    .selector-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; background: #1e293b; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); }
     select, input, button { font-size: 0.9rem; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); outline: none; }
     select { background: #0f172a; color: #fff; flex: 1; }
     button { background: var(--primary); color: #fff; border: none; cursor: pointer; transition: 0.2s; font-weight: 500; }
@@ -44,6 +49,7 @@ DEMO_HTML = """<!DOCTYPE html>
     .msg { max-width: 85%; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; line-height: 1.4; }
     .msg.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 2px; }
     .msg.assistant { align-self: flex-start; background: #334155; color: #f8fafc; border-bottom-left-radius: 2px; white-space: pre-line; }
+    .msg-meta { font-size: 0.72rem; color: var(--accent); margin-top: 4px; display: block; font-family: monospace; }
     .quick-prompts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
     .quick-btn { font-size: 0.75rem; padding: 4px 8px; background: #1e293b; border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; cursor: pointer; }
     .quick-btn:hover { border-color: var(--accent); color: var(--text); }
@@ -54,26 +60,29 @@ DEMO_HTML = """<!DOCTYPE html>
     .kv-key { color: var(--text-muted); }
     .kv-val { font-weight: bold; color: #fff; }
     .script-box { background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 0.85rem; color: #e2e8f0; margin-top: 10px; max-height: 140px; overflow-y: auto; }
+    audio { width: 100%; margin-top: 10px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <div>
-        <h1>Brightloop AI Assistant & Invoice Intelligence</h1>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">45-Second Evaluator Demonstration — Hackathon 2026</p>
+        <h1>Brightloop AI Assistant & Voice Services</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Evaluator Demonstration — ODDO National Hackathon 2026</p>
       </div>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <span class="badge" id="llm-badge">Gemini LLM: Ready</span>
-        <span class="badge" id="tts-badge">Murf TTS: Ready</span>
+      <div class="badge-bar">
+        <span class="badge badge-mock" id="llm-badge">Gemini: Checking...</span>
+        <span class="badge badge-mock" id="tts-badge">Murf TTS: Checking...</span>
+        <span class="badge badge-mock" id="tel-badge">Telephony: Checking...</span>
+        <span class="badge badge-warn" id="data-badge">Data: Mock Fixture (Portal In Progress)</span>
       </div>
     </header>
 
     <div class="selector-bar">
       <label style="font-size: 0.9rem; color: var(--text-muted);">Active Customer Session:</label>
       <select id="customer-select" onchange="onCustomerChange()">
-        <option value="cust-101">Alice Smith (TechCorp) — Pro Plan ($49/mo, Unpaid Invoice inv-301)</option>
-        <option value="cust-202">Bob Freelance (Starter Plan $19/mo, Paid Invoice inv-302)</option>
+        <option value="cust-101">Alice Smith (TechCorp) — Pro Plan ($49/mo, Unpaid Invoice inv-301, Consent: YES)</option>
+        <option value="cust-202">Bob Freelance (Starter Plan $19/mo, Paid Invoice inv-302, Consent: NO / OPT-OUT)</option>
       </select>
     </div>
 
@@ -117,16 +126,22 @@ DEMO_HTML = """<!DOCTYPE html>
         </div>
 
         <div>
-          <h2>3. AI Voice Assistance Call (Murf TTS)</h2>
+          <h2>3. AI Voice Assistance Call (Murf TTS + Telephony)</h2>
           <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
-            Simulates post-activation welcome call. Verifies consent, synthesizes speech, and masks PII.
+            Post-activation customer welcome call. Checks explicit consent, synthesizes speech via Murf TTS, masks PII, and dispatches via Telephony provider.
           </p>
           <button class="btn-secondary" onclick="triggerVoiceCall()">Trigger Activation Welcome Call</button>
           <div class="status-panel" id="voice-result" style="display: none;">
             <div class="kv-row"><span class="kv-key">Recipient (Masked):</span><span class="kv-val" id="call-phone">-</span></div>
-            <div class="kv-row"><span class="kv-key">Consent Status:</span><span class="kv-val" id="call-consent" style="color: var(--success);">-</span></div>
+            <div class="kv-row"><span class="kv-key">Consent Status:</span><span class="kv-val" id="call-consent">-</span></div>
             <div class="kv-row"><span class="kv-key">TTS Audio Synthesized:</span><span class="kv-val" id="call-tts">-</span></div>
             <div class="kv-row"><span class="kv-key">Dispatch Status:</span><span class="kv-val" id="call-status">-</span></div>
+            
+            <div id="audio-container" style="display: none; margin-top: 10px;">
+              <span class="kv-key" style="font-size: 0.78rem;">Play Synthesized Audio:</span>
+              <audio id="audio-player" controls></audio>
+            </div>
+
             <div class="script-box" id="call-script"></div>
           </div>
         </div>
@@ -137,6 +152,50 @@ DEMO_HTML = """<!DOCTYPE html>
   <script>
     let currentCustomerId = "cust-101";
 
+    async function checkHealth() {
+      try {
+        const res = await fetch("/health");
+        if (res.ok) {
+          const d = await res.json();
+          const llm = d.providers?.llm;
+          const tts = d.providers?.tts;
+          const tel = d.providers?.telephony;
+
+          const llmBadge = document.getElementById("llm-badge");
+          if (!llm?.simulated) {
+            llmBadge.className = "badge badge-live";
+            llmBadge.innerText = "Gemini LLM: REAL (" + (llm?.model || "3.5-flash-lite") + ")";
+          } else {
+            llmBadge.className = "badge badge-mock";
+            llmBadge.innerText = "Gemini LLM: MOCK";
+          }
+
+          const ttsBadge = document.getElementById("tts-badge");
+          if (!tts?.simulated) {
+            ttsBadge.className = "badge badge-live";
+            ttsBadge.innerText = "Murf TTS: REAL (" + (tts?.voice || "en-US-marcus") + ")";
+          } else {
+            ttsBadge.className = "badge badge-mock";
+            ttsBadge.innerText = "Murf TTS: MOCK";
+          }
+
+          const telBadge = document.getElementById("tel-badge");
+          if (tel?.mode === "twilio_voice" && !tel?.simulated) {
+            telBadge.className = "badge badge-live";
+            telBadge.innerText = "Twilio: LIVE CARRIER";
+          } else if (tel?.mode === "twilio_voice") {
+            telBadge.className = "badge badge-mock";
+            telBadge.innerText = "Twilio: DRY-RUN SAFETY";
+          } else {
+            telBadge.className = "badge badge-mock";
+            telBadge.innerText = "Telephony: SIMULATED";
+          }
+        }
+      } catch (e) {
+        console.warn("Health check error", e);
+      }
+    }
+
     function onCustomerChange() {
       currentCustomerId = document.getElementById("customer-select").value;
       const box = document.getElementById("chat-box");
@@ -145,11 +204,17 @@ DEMO_HTML = """<!DOCTYPE html>
       document.getElementById("voice-result").style.display = "none";
     }
 
-    function appendMessage(role, text) {
+    function appendMessage(role, text, meta) {
       const box = document.getElementById("chat-box");
       const d = document.createElement("div");
       d.className = "msg " + role;
       d.innerText = text;
+      if (meta) {
+        const m = document.createElement("span");
+        m.className = "msg-meta";
+        m.innerText = meta;
+        d.appendChild(m);
+      }
       box.appendChild(d);
       box.scrollTop = box.scrollHeight;
     }
@@ -181,7 +246,8 @@ DEMO_HTML = """<!DOCTYPE html>
         });
         const data = await res.json();
         if (res.ok) {
-          appendMessage("assistant", data.reply);
+          const providerTag = data.is_simulated ? "[MOCK GEMINI]" : "[REAL GEMINI " + (data.latency_ms ? data.latency_ms + "ms" : "") + "]";
+          appendMessage("assistant", data.reply, providerTag + " | Grounded on Backend Records");
         } else {
           appendMessage("assistant", "⚠️ Error: " + (data.detail?.message || "Failed to process chat"));
         }
@@ -208,7 +274,8 @@ DEMO_HTML = """<!DOCTYPE html>
           document.getElementById("inv-status").innerText = data.status.toUpperCase() + " | Due " + data.due_date;
           document.getElementById("inv-subtax").innerText = "$" + data.subtotal + " + $" + data.total_tax + " tax";
           document.getElementById("inv-total").innerText = "$" + data.total_amount + " (Outstanding: $" + data.outstanding_balance + ")";
-          document.getElementById("inv-narrative").innerText = data.explanation_narrative;
+          const modelTag = data.is_simulated ? " [MOCK NARRATIVE]" : " [REAL GEMINI LLM EXPLANATION]";
+          document.getElementById("inv-narrative").innerText = data.explanation_narrative + "\n\n" + modelTag;
         } else {
           alert("Error: " + JSON.stringify(data.detail));
         }
@@ -259,10 +326,27 @@ DEMO_HTML = """<!DOCTYPE html>
         const data = await res.json();
         if (res.ok) {
           document.getElementById("call-phone").innerText = data.customer_phone_masked;
-          document.getElementById("call-consent").innerText = data.status === "cancelled" ? "OPTED OUT" : "VERIFIED & GRANTED";
-          document.getElementById("call-tts").innerText = data.audio_synthesized ? "True (Murf Audio Ready)" : "Simulated Audio";
-          document.getElementById("call-status").innerText = data.status.toUpperCase() + " (Call ID: " + data.call_id + ")";
-          document.getElementById("call-script").innerText = data.dialogue_script || "(Opted out: no dialogue dispatched)";
+          const consentElem = document.getElementById("call-consent");
+          if (data.status === "cancelled") {
+            consentElem.innerText = "OPTED OUT (Consent=False — Call Cancelled)";
+            consentElem.style.color = "var(--danger)";
+          } else {
+            consentElem.innerText = "VERIFIED & GRANTED (Consent=True)";
+            consentElem.style.color = "var(--success)";
+          }
+
+          document.getElementById("call-tts").innerText = data.audio_synthesized ? "True (Audio Ready for Playback)" : "None";
+          document.getElementById("call-status").innerText = data.status.toUpperCase() + " | Provider: " + data.provider_name;
+          document.getElementById("call-script").innerText = data.dialogue_script || "(Customer opted out: no dialogue dispatched)";
+
+          const audioContainer = document.getElementById("audio-container");
+          const audioPlayer = document.getElementById("audio-player");
+          if (data.audio_synthesized) {
+            audioPlayer.src = "/voice/assistance-call/audio/" + data.call_id;
+            audioContainer.style.display = "block";
+          } else {
+            audioContainer.style.display = "none";
+          }
         } else {
           alert("Call trigger failed: " + JSON.stringify(data.detail));
         }
@@ -270,8 +354,10 @@ DEMO_HTML = """<!DOCTYPE html>
         alert("Voice call error: " + err.message);
       }
     }
+
+    // Initialize badges on load
+    window.addEventListener("DOMContentLoaded", checkHealth);
   </script>
 </body>
 </html>
 """
-

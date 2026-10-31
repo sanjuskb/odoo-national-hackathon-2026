@@ -6,10 +6,11 @@ Exposes clean HTTP JSON endpoints for:
 - AI Invoice Explainer (/invoice/explain)
 - AI Subscription Assistance Calls (/voice/assistance-call/*)
 - System Health and Provider Diagnostics (/health)
+- Twilio Status Webhook (/voice/twilio/callback)
 """
 
 from typing import Any, Dict, Optional
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from ai.src.assistant.chatbot import CustomerAssistantOrchestrator
@@ -17,6 +18,7 @@ from ai.src.assistant.models import CustomerChatRequest
 from ai.src.core.config import get_settings
 from ai.src.core.exceptions import (
     AuthenticationRequiredError,
+    ConfigurationError,
     CrossCustomerAccessError,
     ProviderError,
     ValidationError,
@@ -32,6 +34,7 @@ from ai.src.providers.mock_gemini_provider import MockGeminiProvider
 from ai.src.providers.mock_murf_provider import MockMurfTTSProvider
 from ai.src.providers.mock_telephony_provider import MockTelephonyProvider
 from ai.src.providers.murf_provider import MurfTTSProvider
+from ai.src.providers.twilio_telephony_provider import TwilioTelephonyProvider
 from ai.src.utils.logging import get_logger
 from ai.src.voice.assistance_call_service import AIAssistanceCallService
 from ai.src.voice.models import SubscriptionActivationEvent
@@ -48,20 +51,28 @@ def create_app() -> FastAPI:
         version=settings.model_version,
     )
 
-    # Initialize shared adapters
-    llm_provider = (
-        GeminiProvider()
-        if (not settings.use_mock_providers and settings.gemini_api_key)
-        else MockGeminiProvider()
-    )
+    # Initialize shared adapters with clear mock vs real distinction
+    if not settings.use_mock_providers and settings.gemini_api_key:
+        llm_provider = GeminiProvider()
+    elif not settings.use_mock_providers and not settings.gemini_api_key:
+        raise ConfigurationError("Live Gemini requested (USE_MOCK_PROVIDERS=false) but GEMINI_API_KEY is not configured.")
+    else:
+        llm_provider = MockGeminiProvider()
 
-    tts_provider = (
-        MurfTTSProvider()
-        if (not settings.use_mock_providers and settings.murf_api_key)
-        else MockMurfTTSProvider()
-    )
+    if not settings.use_mock_providers and settings.murf_api_key:
+        tts_provider = MurfTTSProvider()
+    else:
+        tts_provider = MockMurfTTSProvider()
 
-    telephony_provider = MockTelephonyProvider()
+    if (
+        not settings.use_mock_providers
+        and settings.telephony_provider == "twilio"
+        and settings.twilio_account_sid
+    ):
+        telephony_provider = TwilioTelephonyProvider(dry_run=True)
+    else:
+        telephony_provider = MockTelephonyProvider()
+
     backend_client = MockBackendClient()
 
     # Core AI domain services
@@ -93,17 +104,19 @@ def create_app() -> FastAPI:
                     "type": type(llm_provider).__name__,
                     "model": settings.gemini_model,
                     "available": llm_provider.is_available(),
-                    "simulated": getattr(llm_provider, "is_available", lambda: True)(),
+                    "simulated": isinstance(llm_provider, MockGeminiProvider),
                 },
                 "tts": {
                     "type": type(tts_provider).__name__,
                     "voice": settings.murf_voice_id,
                     "available": tts_provider.is_available(),
+                    "simulated": isinstance(tts_provider, MockMurfTTSProvider),
                 },
                 "telephony": {
                     "type": type(telephony_provider).__name__,
                     "available": telephony_provider.is_available(),
-                    "mode": "simulation_only" if isinstance(telephony_provider, MockTelephonyProvider) else "live",
+                    "mode": "simulation_only" if isinstance(telephony_provider, MockTelephonyProvider) else "twilio_voice",
+                    "simulated": isinstance(telephony_provider, MockTelephonyProvider) or getattr(telephony_provider, "dry_run", False),
                 },
             },
         }
@@ -167,6 +180,31 @@ def create_app() -> FastAPI:
                 detail={"code": "CALL_NOT_FOUND", "message": f"Call {call_id} not found"},
             )
         return record.model_dump()
+
+    @app.get("/voice/assistance-call/audio/{call_id}")
+    def get_assistance_call_audio(call_id: str) -> Response:
+        """Stream raw synthesized Murf audio bytes for browser playback."""
+        audio_bytes = voice_service.get_call_audio(call_id)
+        if not audio_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "AUDIO_NOT_FOUND", "message": f"Synthesized audio for call {call_id} not available"},
+            )
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+
+    @app.post("/voice/twilio/callback", status_code=status.HTTP_200_OK)
+    async def twilio_callback_endpoint(request: Request) -> Dict[str, Any]:
+        """Webhook endpoint for Twilio call status updates."""
+        try:
+            form_data = await request.form()
+            payload = dict(form_data)
+        except Exception:
+            payload = {}
+        if isinstance(telephony_provider, TwilioTelephonyProvider):
+            updated = telephony_provider.parse_status_callback(payload)
+            if updated:
+                return {"received": True, "call_id": updated.call_id, "status": updated.status.value}
+        return {"received": True, "detail": "Callback processed"}
 
     @app.get("/demo", response_class=HTMLResponse)
     @app.get("/", response_class=HTMLResponse)

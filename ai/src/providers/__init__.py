@@ -15,6 +15,7 @@ from ai.src.providers.telephony_base import (
     OutboundCallRequest,
 )
 from ai.src.providers.tts_base import BaseTTSProvider, TTSRequest, TTSResponse
+from ai.src.providers.twilio_telephony_provider import TwilioTelephonyProvider
 
 __all__ = [
     "BaseLLMProvider",
@@ -32,5 +33,5 @@ __all__ = [
     "OutboundCallRequest",
     "CallRecord",
     "MockTelephonyProvider",
+    "TwilioTelephonyProvider",
 ]
-

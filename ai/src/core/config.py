@@ -61,14 +61,14 @@ class AISettings(BaseSettings):
 
     # Gemini LLM Provider Settings
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
-    gemini_timeout_seconds: float = Field(default=10.0, alias="GEMINI_TIMEOUT_SECONDS")
+    gemini_model: str = Field(default="gemini-3.5-flash-lite", alias="GEMINI_MODEL")
+    gemini_timeout_seconds: float = Field(default=15.0, alias="GEMINI_TIMEOUT_SECONDS")
     gemini_temperature: float = Field(default=0.2, alias="GEMINI_TEMPERATURE")
 
     # Murf TTS Provider Settings
     murf_api_key: Optional[str] = Field(default=None, alias="MURF_API_KEY")
     murf_voice_id: str = Field(default="en-US-marcus", alias="MURF_VOICE_ID")
-    murf_timeout_seconds: float = Field(default=10.0, alias="MURF_TIMEOUT_SECONDS")
+    murf_timeout_seconds: float = Field(default=15.0, alias="MURF_TIMEOUT_SECONDS")
 
     # Telephony & Assistance Call Settings
     telephony_provider: str = Field(default="mock", alias="TELEPHONY_PROVIDER")
@@ -77,6 +77,15 @@ class AISettings(BaseSettings):
         default=60, alias="CALL_ASSISTANCE_WINDOW_SECONDS"
     )
     call_max_retries: int = Field(default=3, alias="CALL_MAX_RETRIES")
+
+    # Twilio Telephony Settings
+    twilio_account_sid: Optional[str] = Field(default=None, alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: Optional[str] = Field(default=None, alias="TWILIO_AUTH_TOKEN")
+    twilio_phone_number: Optional[str] = Field(default=None, alias="TWILIO_PHONE_NUMBER")
+    twilio_status_callback_url: Optional[str] = Field(
+        default=None, alias="TWILIO_STATUS_CALLBACK_URL"
+    )
+    twilio_timeout_seconds: float = Field(default=10.0, alias="TWILIO_TIMEOUT_SECONDS")
 
 
 def load_yaml_config(file_path: Optional[str] = None) -> Dict[str, Any]:
@@ -112,4 +121,3 @@ def load_yaml_config(file_path: Optional[str] = None) -> Dict[str, Any]:
 def get_settings() -> AISettings:
     """Return a cached singleton instance of AISettings."""
     return AISettings()
-

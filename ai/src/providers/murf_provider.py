@@ -6,6 +6,7 @@ Adheres strictly to the BaseTTSProvider interface. Server-side only; never expos
 credentials to clients or frontend code.
 """
 
+import base64
 import time
 from typing import Any, Dict, Optional
 import httpx
@@ -16,6 +17,7 @@ from ai.src.core.exceptions import (
     ProviderError,
     ProviderRateLimitError,
     ProviderTimeoutError,
+    ValidationError,
 )
 from ai.src.providers.tts_base import BaseTTSProvider, TTSRequest, TTSResponse
 from ai.src.utils.logging import get_logger
@@ -35,9 +37,9 @@ class MurfTTSProvider(BaseTTSProvider):
         timeout_seconds: Optional[float] = None,
     ):
         settings = get_settings()
-        self.api_key = api_key or settings.murf_api_key
-        self.voice_id = voice_id or settings.murf_voice_id
-        self.timeout_seconds = timeout_seconds or settings.murf_timeout_seconds
+        self.api_key = api_key if api_key is not None else settings.murf_api_key
+        self.voice_id = voice_id if voice_id is not None else settings.murf_voice_id
+        self.timeout_seconds = timeout_seconds if timeout_seconds is not None else settings.murf_timeout_seconds
 
     def is_available(self) -> bool:
         """Return True if Murf API key is present."""
@@ -50,16 +52,22 @@ class MurfTTSProvider(BaseTTSProvider):
                 "Murf API key is not configured. Set MURF_API_KEY in server environment."
             )
 
+        if not request.text or not request.text.strip():
+            raise ValidationError("TTS request text cannot be empty or whitespace only")
+
         headers = {
             "api-key": self.api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
 
+        # Murf rate modifier: -50 to +50 percentage change from base rate (0 = normal)
+        rate_modifier = int(max(-50, min(50, (request.speaking_rate - 1.0) * 100)))
+
         payload: Dict[str, Any] = {
             "voiceId": request.voice_id or self.voice_id,
-            "text": request.text,
-            "rate": int(request.speaking_rate * 100),
+            "text": request.text.strip(),
+            "rate": rate_modifier,
             "format": request.audio_format.upper(),
         }
 
@@ -89,15 +97,30 @@ class MurfTTSProvider(BaseTTSProvider):
         try:
             data = response.json()
             audio_url = data.get("audioFile")
+            encoded_audio = data.get("encodedAudio")
             duration = float(data.get("audioLengthInSeconds", 0.0))
 
-            # Fetch audio bytes if URL returned
             audio_bytes = b""
-            if audio_url:
-                with httpx.Client(timeout=self.timeout_seconds) as client:
-                    dl_resp = client.get(audio_url)
-                    if dl_resp.is_success:
-                        audio_bytes = dl_resp.content
+            if encoded_audio:
+                try:
+                    audio_bytes = base64.b64decode(encoded_audio)
+                except Exception as b64_exc:
+                    logger.warning("Failed to decode base64 encodedAudio: %s", str(b64_exc))
+
+            if not audio_bytes and audio_url:
+                try:
+                    with httpx.Client(timeout=self.timeout_seconds) as client:
+                        dl_resp = client.get(audio_url)
+                        if dl_resp.is_success:
+                            audio_bytes = dl_resp.content
+                except Exception as dl_exc:
+                    logger.warning("Failed to download audioFile from %s: %s", audio_url, str(dl_exc))
+
+            if not audio_bytes:
+                raise ProviderError(
+                    "Murf response did not contain valid audio data (neither audioFile nor encodedAudio succeeded)",
+                    details={"raw": data}
+                )
 
             return TTSResponse(
                 audio_bytes=audio_bytes,
@@ -107,6 +130,7 @@ class MurfTTSProvider(BaseTTSProvider):
                 is_simulated=False,
                 raw_response=data,
             )
+        except ProviderError:
+            raise
         except Exception as exc:
             raise ProviderError(f"Failed to process Murf TTS response: {str(exc)}") from exc
-
