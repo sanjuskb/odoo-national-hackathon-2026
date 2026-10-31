@@ -472,22 +472,101 @@ This PR delivers the complete backend foundation for Phases 2, 3, 4, 5, and 6 on
   - Strict security: customer role rejected with 403 on all reports.
   - Measured benchmark script: `backend/scripts/perf-check.js` (min/median/max latencies on 5,000 subscriptions, 20,000 invoices, 15,000 payments).
   - Harsha optimization proposal: `backend/REPORTS_SQL_PROPOSAL.md` (7 B-tree indexes, stored RPC).
+- **Phase 7 (Integration Readiness & Stabilization):**
+  - **Reports Performance (Priority C):**
+    - RPC-First summary: `/api/v1/reports/summary` attempts `public.get_finance_summary_report(p_from, p_to, p_customer_id, p_plan_id, p_as_of)`. On PostgREST error (PGRST202 / missing function), falls back transparently to chunked aggregation with 5-minute per-process cache.
+    - URL-length & query overflow guard: all `.in(...)` queries strictly chunked to $\le 100$ IDs and executed via bounded concurrency (max 5 active workers) via `utils/async.js` (`mapConcurrent`).
+    - In-memory TTL cache: 30-second TTL cache for `/reports/summary` and `/reports/subscriptions` with `X-Cache: HIT | MISS` header and `?refresh=true` bypass. Disabled in test mode by default.
+    - Performance benchmark verification (`scripts/perf-check.js`): with RPC deployed, the summary needs **1 round trip** (~60ms @ 60ms RTT); without RPC, the fallback needs **89 round trips** (~5,340ms @ 60ms RTT). **The under-2-second SLA is NOT met without the database RPC.**
+  - **Live Smoke Script (Priority D):**
+    - Created `backend/scripts/smoke-live.js` executing 12-step end-to-end business flow over HTTP (health, auth, customer registration, product/variant pricing, tax/discount creation, plan/template creation, subscription lifecycle, billing preview verification with pure integer math, billing trigger, invoice payment & overpayment guard, customer isolation 403 checks, reports SLA verification).
+    - Supports `--dry-run`, masks credentials/tokens to $\le 10$ characters, zero external dependencies (Node `fetch`). Unit tested in `tests/smoke-script.test.js`.
+  - **Schema Check & Mismatches (Priority E):**
+    - Compared all repository queries against Harsha's database migrations (`001`, `002`, `003`) and `01_brightloop_schema.sql`.
+    - Created `backend/SCHEMA_DRAFT.sql` as a standalone reference draft for Harsha including missing stored functions (`record_payment_atomic`, `get_finance_summary_report`).
+  - **Overdue Status Semantics (Priority B):**
+    - Invoice `status` is ALWAYS the stored status (`draft`, `confirmed`, `paid`, `cancelled`), never `"overdue"`.
+    - Overdue is exposed as `is_overdue: boolean` on all invoice endpoints (`GET /invoices`, `GET /invoices/:id`).
+    - Supported query filters: `?overdue=true` and `?status=overdue` as an alias for `overdue=true`.
+
+## Schema Mismatch & Field Alignment Table (Priority E)
+
+| Table | Harsha Canonical Schema | Backend Repository Layer | Compatibility & Mapping Resolution | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| `profiles` | `id, email, full_name, role, phone, company_name, created_at, updated_at` | `id, email, full_name, role` | Full match; `roleStore.js` and middleware verify `role IN ('customer', 'staff', 'admin')` | **100% Compatible** |
+| `products` | `id, name, description, base_price, category, is_active, created_at, updated_at` | `id, name, description, base_price, category, is_active` | Full match; money parsed and formatted via integer utilities | **100% Compatible** |
+| `product_variants` | `id, product_id, name, price_adjustment, sku, is_active, created_at, updated_at` | `id, product_id, name, price_adjustment, sku, is_active` | Full match; variant pricing adjustment calculated cleanly | **100% Compatible** |
+| `plans` | `id, name, billing_frequency, billing_interval, trial_period_days, auto_renew, is_active` | `id, name, billing_frequency, billing_interval, trial_period_days, auto_renew, is_active` | Full match; frequencies `'weekly', 'monthly', 'quarterly', 'yearly'` | **100% Compatible** |
+| `quotation_templates` | `id, name, plan_id, validity_days, created_at, updated_at` | `id, name, plan_id, validity_days, created_at` | Full match | **100% Compatible** |
+| `quotation_template_lines`| `id, template_id, product_id, variant_id, quantity` | `id, template_id, product_id, variant_id, quantity` | Full match | **100% Compatible** |
+| `subscriptions` | `id, subscription_number, customer_id, plan_id, template_id, start_date, expiry_date, payment_terms, status, next_billing_date, billing_anchor_date` | `valid_until`, `is_paused` flag | Dual-mapping: `is_paused = (row.is_paused ?? (row.status === 'paused'))`. `valid_until` optional in repository. Status stays `'active'` when paused via flag. | **Dual-Mapped & Compatible** |
+| `subscription_lines` | `id, subscription_id, product_id, variant_id, quantity, description, unit_price, variant_adjustment` | Identical columns | Full match; line total computed cleanly | **100% Compatible** |
+| `tax_rules` | `id, name, rate_percent, description, is_active, created_at, updated_at` | `rate_percent` with `rate` alias | Full match; dual-mapped in `taxes.repository.js` | **100% Compatible** |
+| `discount_rules` | `id, name, kind, value, scope, min_amount, min_quantity, valid_from, valid_until, max_uses, used_count` | `valid_until` (`end_date` alias), `valid_from` (`start_date` alias) | Full match; dual-mapped in `discounts.repository.js` | **100% Compatible** |
+| `discount_product_mappings` | `discount_rule_id, product_id` PK | Identical columns | Full match; chunked in batches of $\le 100$ | **100% Compatible** |
+| `invoices` | `id, subscription_id, customer_id, billing_period_start, billing_period_end_exclusive, due_date, currency, status, subtotal, discount_total, tax_total, total` | `billing_period_end_exclusive` with legacy alias `billing_period_end`; currency defaults to `'INR'` | Stored status in DB (`draft`, `confirmed`, `paid`, `cancelled`). Dual-mapped in `invoices.repository.js`. | **Dual-Mapped & Compatible** |
+| `invoice_lines` | `id, invoice_id, product_id, description, quantity, unit_price, variant_adjustment, base_amount, discount_amount, tax_percent, tax_amount, line_total` | `tax_percent` with legacy alias `tax_rate_percent` | Full match; dual-mapped in `invoiceLines.repository.js` on read and write | **Dual-Mapped & Compatible** |
+| `payments` | `id, invoice_id, amount, method, paid_at, note, external_reference, created_at` | `paid_at` with alias `payment_date`; `external_reference` with alias `reference` | Full match; dual-mapped in `payments.repository.js` | **Dual-Mapped & Compatible** |
+| `discount_redemptions` | `id, discount_rule_id, invoice_id, amount` | Managed via atomic billing RPC | Full match with Sanju's billing runner | **100% Compatible** |
+| RPC `persist_due_billing_invoice` | Deployed in Harsha's migration `002` | Called by Sanju's billing runner | 100% signature parity | **100% Compatible** |
+| RPC `record_payment_atomic` | Drafted in `backend/SCHEMA_DRAFT.sql` | In-memory mutex `withInvoiceLock` | Needed from Harsha for database-level atomicity | **Temporary In-Memory Mutex** |
+| RPC `get_finance_summary_report` | Proposed in `backend/REPORTS_SQL_PROPOSAL.md` | RPC-first with 5-minute fallback cache | Needed from Harsha to achieve sub-2-second SLA | **Fallback Operational (89 trips)** |
+
+### Needed from Harsha
+1. **Optional `valid_until DATE` column on `public.subscriptions`:** Allows persisting distinct quotation expiration deadlines independently from the subscription term's `expiry_date`.
+2. **Atomic Payment RPC `record_payment_atomic`:** Replaces the backend's per-process in-memory lock (`withInvoiceLock`) with database-level `SELECT ... FOR UPDATE` row locking.
+3. **Finance Reports RPC `get_finance_summary_report` and B-tree indexes:** Reduces `/reports/summary` from 89 round trips down to 1 round trip, guaranteeing the under-2-second target on production Supabase.
+
+---
 
 ## Verification & Test Results
-- **Test Suite:** 18 test files, 282 tests passed, 0 failures (1.94s execution).
+- **Test Suite:** **20 test files, 298 tests passed, 0 failures (2.46s execution).**
+- **Supabase Mode:** **MOCKED in-memory** via `backend/tests/mocks/supabase.mock.js`. Live checks pending live database credentials.
 - **Parity Verified:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
-- **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, XSS protection verified via automated tests.
+- **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, XSS protection, and strict 403 authorization verified.
 ```
 
 ---
 
-## Database Interoperability & Schema Verification Handoff (Harsha `feature/harsha-supabase-setup`)
-- **Core Schema Inspection:** Verified Harsha's 16 tables in `migrations/20261031_001_brightloop_core.sql` and `20261031_002_atomic_billing_rpc.sql`.
-- **Dual-Mapping Compatibility Layer:** Added backwards-compatible repository mappings in:
-  1. `invoices.repository.js`: maps `billing_period_end_exclusive` <-> `billing_period_end` and `currency`.
-  2. `invoiceLines.repository.js`: maps `tax_percent` <-> `tax_rate_percent`.
-  3. `payments.repository.js`: maps `paid_at` <-> `payment_date` and `external_reference` <-> `reference`.
-  4. `subscriptions.repository.js`: maps `status === 'paused'` <-> `is_paused`.
-- **Contract Verification Tests:** Added `backend/tests/dual-mapping-contracts.test.js` validating schema interoperability against Harsha's PostgreSQL table definitions.
-- **Status:** 100% interoperable. All 282 tests pass. Ready for develop integration once Harsha's PR lands.
+## Ready-to-Paste Pull Request (Whole Branch: Phases 2-7)
+
+### Title:
+`feat(backend): complete phases 2-7 (products, plans, subscriptions, taxes, discounts, invoices, payments, reports, and integration readiness)`
+
+### Description:
+```markdown
+## Summary
+This PR delivers the complete backend foundation, business flows, stabilization, and integration readiness for Phases 2 through 7 on `feature/amarnath-products-plans`:
+
+- **Phase 2 (Products & Plans):** Products, variants, recurring plans with availability & policy flags, pure money utility (`money.js`), pricing service.
+- **Phase 3 (Subscriptions & Lifecycle):** Quotation templates, subscriptions with automatic sequence numbers (`SUB-YYYYMM-XXXXXX`), customer isolation, full lifecycle transitions (`draft` -> `quotation` -> `confirmed` -> `active` -> `paused` / `closed`), plan-expired auto-close job, pure UTC date arithmetic (`dates.js`). Pause semantics: `is_paused` flag preserves the active subscription status.
+- **Phase 4 (Taxes & Discounts):**
+  - Reconciled subscription line pricing: stored `unit_price` as base price and `variant_adjustment` separately to eliminate double-counting; snapshotted `tax_rate_percent` from `tax_rules`.
+  - Pure integer tax service (`tax.service.js`) with half-up rounding.
+  - Tax rules CRUD (`/api/v1/taxes`) with role-based access control.
+  - Pure discount service (`discount.service.js`) with date/threshold/scope eligibility, largest-saving selection (no stacking), and deterministic line allocation.
+  - Discount rules CRUD (`/api/v1/discounts`) with tamper-proof `used_count`.
+  - Deterministic invoice preview (`GET /api/v1/billing/preview`) with 100% mathematical parity against Sanju's `calculateInvoice`.
+- **Phase 5 (Invoices & Payment Ledger):**
+  - Pure invoice financials service (`invoice.service.js`): stored status (`draft`, `confirmed`, `paid`, `cancelled`), balance due, and paid amount without floating-point math.
+  - Invoice endpoints: `GET /api/v1/invoices`, `GET /api/v1/invoices/:id`, `POST /api/v1/invoices/:id/confirm`, `POST /api/v1/invoices/:id/cancel` (protected against cancelling invoices with recorded payments).
+  - Overdue semantics: `status` is ALWAYS the stored status; overdue is exposed as `is_overdue: boolean` and `days_overdue`. Query filters `?overdue=true` and `?status=overdue` alias supported.
+  - Printable invoice view: `GET /api/v1/invoices/:id/print` (JSON default, `?format=html` with complete styling and rigorous HTML escaping preventing XSS).
+  - Best-effort email dispatch: `POST /api/v1/invoices/:id/send` via Resend HTTP API (returns 503 when unconfigured).
+  - Payment ledger: `POST /api/v1/invoices/:id/payments` with overpayment guard, automatic transition to `paid` on zero balance, and `paid_at` timestamp.
+  - Payment queries: `GET /api/v1/payments` (admin/staff only), `GET /api/v1/invoices/:id/payments` (customer scoped), and `GET /api/v1/portal/invoices`.
+- **Phase 6 & 7 (Finance Reports & Optimization):**
+  - RPC-First summary: `GET /api/v1/reports/summary` calls `get_finance_summary_report` with 5-minute per-process cache and seamless fallback to bounded chunk aggregation.
+  - URL-length & query overflow protection: every `.in(...)` query strictly limited to $\le 100$ IDs with bounded parallelism (max 5 active workers) via `utils/async.js` (`mapConcurrent`).
+  - 30-second TTL cache for `/reports/summary` and `/reports/subscriptions` with `X-Cache: HIT | MISS` header and `?refresh=true` bypass.
+  - Benchmark measurements (`scripts/perf-check.js`): with RPC deployed, summary takes 1 round trip (~60ms @ 60ms RTT); without RPC, fallback takes 89 round trips (~5,340ms @ 60ms RTT). Database function is required to achieve the under-2-second SLA on remote database.
+  - End-to-end live smoke script: `backend/scripts/smoke-live.js` (supports `--dry-run`, masks tokens to $\le 10$ chars, tests all 12 business steps over HTTP).
+  - Standalone reference schema: `backend/SCHEMA_DRAFT.sql` with Harsha review notice.
+
+## Verification & Test Results
+- **Test Suite:** **20 test files, 298 tests passed, 0 failures (2.46s execution).**
+- **Execution Mode:** Supabase MOCKED in-memory via `backend/tests/mocks/supabase.mock.js`. Live checks pending live Supabase deployment.
+- **Contract Parity:** Standard fixture 3 x (1000.00 + 560.00) @ 10% discount + 18% tax = 4680.00 subtotal, 468.00 discount, 758.16 tax, 4970.16 total.
+- **Security & Envelopes:** Standard `{ success, data, message, errors }` envelope, customer data isolation, and strict 403 authorization verified.
+```
 

@@ -632,8 +632,8 @@ Response (200):
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-013 | GET | /invoices | Staff, Admin (or owning customer) | — (query: page, page_size, status, customer_id, due_before, due_after) | `{ items: [Invoice], pagination }` | Ownership filtering for customer role | 401, 403 | invoices | Implemented |
-| FR-013 | GET | /invoices/:id | Staff, Admin (or owning customer) | — | `{ invoice: Invoice }` | Ownership check (lines, payments, financials embedded) | 401, 403, 404 | invoices, invoice_lines, payments | Implemented |
+| FR-013 | GET | /invoices | Staff, Admin (or owning customer) | — (query: page, page_size, status, overdue, customer_id, due_before, due_after) | `{ items: [Invoice], pagination }` | Ownership filtering for customer role. Stored `status` never returns 'overdue'; overdue exposed as `is_overdue: boolean`. `?overdue=true` and `?status=overdue` alias supported. | 401, 403 | invoices | Implemented |
+| FR-013 | GET | /invoices/:id | Staff, Admin (or owning customer) | — | `{ invoice: Invoice }` | Ownership check (lines, payments, financials embedded; `is_overdue: boolean`) | 401, 403, 404 | invoices, invoice_lines, payments | Implemented |
 | FR-015, FR-016 | POST | /invoices/:id/confirm | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft status | 403, 404, 409 | invoices | Implemented |
 | FR-015 | POST | /invoices/:id/cancel | Staff, Admin | — | `{ invoice: Invoice }` | Must be in draft or confirmed status with 0 payments; record kept as cancelled | 403, 404, 409 | invoices, payments | Implemented |
 | FR-015 | POST | /invoices/:id/send | Staff, Admin | `{ recipient_email? }` | `{ invoice: Invoice, sent: boolean }` | Must be confirmed or paid; returns 503 if email unconfigured | 400, 403, 404, 503 | invoices | Implemented |
@@ -651,10 +651,10 @@ Response (200):
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-024 | GET | /reports/summary | Admin, Staff | — (query: from, to, customer_id, plan_id) | `{ active_subscriptions, paused_subscriptions, revenue_invoiced, revenue_collected, outstanding_balance, overdue_count, overdue_amount, as_of, filters }` | from <= to; money strings 2 decimals | 400, 401, 403 | subscriptions, invoices, payments | Implemented |
+| FR-024 | GET | /reports/summary | Admin, Staff | — (query: from, to, customer_id, plan_id, refresh) | `{ active_subscriptions, paused_subscriptions, revenue_invoiced, revenue_collected, outstanding_balance, overdue_count, overdue_amount, as_of, filters }` | from <= to; money strings 2 decimals. 30s TTL cache with `X-Cache: HIT/MISS` header; `?refresh=true` bypasses. RPC-first (`get_finance_summary_report`) with 5min fallback. | 400, 401, 403 | subscriptions, invoices, payments | Implemented |
 | FR-024 | GET | /reports/overdue-invoices | Admin, Staff | — (query: page, limit, customer_id, plan_id, from, to) | `{ items: [OverdueInvoice], pagination }` | Sorted days_overdue DESC; due today not overdue | 400, 401, 403 | invoices, payments | Implemented |
 | FR-024 | GET | /reports/payments | Admin, Staff | — (query: page, limit, from, to, method, invoice_id, customer_id) | `{ items: [Payment], totals: { count, amount }, pagination }` | from <= to | 400, 401, 403 | payments | Implemented |
-| FR-024 | GET | /reports/subscriptions | Admin, Staff | — (query: customer_id, plan_id) | `{ counts: { active, paused, draft, quotation, confirmed, closed } }` | — | 401, 403 | subscriptions | Implemented |
+| FR-024 | GET | /reports/subscriptions | Admin, Staff | — (query: customer_id, plan_id, refresh) | `{ counts: { active, paused, draft, quotation, confirmed, closed } }` | 30s TTL cache with `X-Cache: HIT/MISS` header; `?refresh=true` bypasses. | 401, 403 | subscriptions | Implemented |
 
 ### CUSTOMER PORTAL (FR-025, SEC-002)
 
