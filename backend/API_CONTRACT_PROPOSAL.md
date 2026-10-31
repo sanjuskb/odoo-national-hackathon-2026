@@ -1,6 +1,6 @@
 # API Contract Proposal — Brightloop Subscription Management System
 
-> **Status:** PROPOSED — awaiting approval from Sanju (architect), Ravi (frontend) and Harsha (database).
+> **Status:** PROPOSED — awaiting approval from Sanju (billing service/team lead), Ravi (architecture/frontend) and Harsha (database).
 > **Owner:** Amarnadh (backend)
 > **Date:** 2026-10-31
 > **Source:** [Official Problem Statement](../docs/official/problem-statement.md), [Requirements](../docs/requirements/requirements.md), [Proposed API Contracts](../docs/integration/api-contracts.md)
@@ -85,11 +85,131 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
-| FR-001, SEC-001 | POST | /auth/register | Public | `{ email, password, full_name }` | `{ user: { id, email, full_name, role } }` | email: valid format, unique; password: >8 chars, upper+lower+special | 409 duplicate email, 422 validation | profiles (Supabase Auth + profiles table) | Proposed |
-| FR-001 | POST | /auth/login | Public | `{ email, password }` | `{ access_token, user: { id, email, role } }` | email+password required | 401 invalid credentials | Supabase Auth | Proposed |
-| FR-003 | POST | /auth/forgot-password | Public | `{ email }` | `{ message }` | email required; always returns 200 (no user enumeration) | 422 invalid email format | Supabase Auth | Proposed |
-| SEC-002 | GET | /auth/me | Any authenticated | — | `{ user: { id, email, full_name, role } }` | Valid bearer token | 401 | profiles | Proposed |
-| SEC-003 | POST | /admin/staff | Admin | `{ email, password, full_name }` | `{ user: { id, email, full_name, role: "staff" } }` | Same as register + caller must be admin | 403, 409, 422 | profiles | Proposed |
+| FR-001, SEC-001 | POST | /auth/register | Public | `{ email, password, full_name }` | `{ user: { id, email, full_name, role: "customer" } }` | email: valid format, unique; password: >8 chars (min 9), upper+lower+special; full_name non-empty | 400 validation, 409 duplicate email | Supabase Auth + roleStore | Implemented |
+| FR-001 | POST | /auth/login | Public | `{ email, password }` | `{ access_token, refresh_token, expires_at, user: { id, email, role } }` | email+password required | 400 validation, 401 invalid credentials | Supabase Auth + roleStore | Implemented |
+| FR-003 | POST | /auth/forgot-password | Public | `{ email }` | `null` | valid email format; enumeration-safe (identical response whether email exists or not) | 400 validation | Supabase Auth | Implemented |
+| SEC-002 | GET | /auth/me | Any authenticated | — | `{ id, email, role, user: { id, email, role } }` | Valid Bearer token | 401 unauthenticated | Supabase Auth + roleStore | Implemented |
+| SEC-003 | POST | /staff (alias /admin/staff) | Admin | `{ email, password, full_name }` | `{ user: { id, email, full_name, role: "staff" } }` | Same password rules as register; caller verified admin | 400 validation, 401 unauthenticated, 403 forbidden, 409 duplicate | Supabase Auth + roleStore | Implemented |
+
+#### Implemented Auth Request & Response Examples
+
+##### 1. POST /api/v1/auth/register
+- **Request Body:**
+```json
+{
+  "email": "customer@example.com",
+  "password": "CustomerPassword123!",
+  "full_name": "Bright Customer"
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "email": "customer@example.com",
+      "full_name": "Bright Customer",
+      "role": "customer"
+    }
+  },
+  "message": "User registered successfully",
+  "errors": null
+}
+```
+
+##### 2. POST /api/v1/auth/login
+- **Request Body:**
+```json
+{
+  "email": "customer@example.com",
+  "password": "CustomerPassword123!"
+}
+```
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOi...",
+    "refresh_token": "refresh-token-...",
+    "expires_at": 1730370000,
+    "user": {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "email": "customer@example.com",
+      "role": "customer"
+    }
+  },
+  "message": "Login successful",
+  "errors": null
+}
+```
+
+##### 3. POST /api/v1/auth/forgot-password
+- **Request Body:**
+```json
+{
+  "email": "customer@example.com"
+}
+```
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "If your email is registered, you will receive a password reset link.",
+  "errors": null
+}
+```
+
+##### 4. GET /api/v1/auth/me
+- **Headers:** `Authorization: Bearer <access_token>`
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "email": "customer@example.com",
+    "role": "customer",
+    "user": {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "email": "customer@example.com",
+      "role": "customer"
+    }
+  },
+  "message": "Current user profile",
+  "errors": null
+}
+```
+
+##### 5. POST /api/v1/staff (or POST /api/v1/admin/staff)
+- **Headers:** `Authorization: Bearer <admin_access_token>`
+- **Request Body:**
+```json
+{
+  "email": "staff@brightloop.local",
+  "password": "StaffPassword123!",
+  "full_name": "Internal Staff"
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "22222222-3333-4444-5555-666666666666",
+      "email": "staff@brightloop.local",
+      "full_name": "Internal Staff",
+      "role": "staff"
+    }
+  },
+  "message": "Staff user created successfully",
+  "errors": null
+}
+```
 
 ### PRODUCTS (FR-004, FR-005)
 
@@ -146,6 +266,8 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 ### BILLING (FR-013, FR-017)
 
+**Ownership:** Sanju supplies deterministic invoice calculations and period orchestration; Amarnadh protects/hosts the Express endpoint; Harsha enforces PostgreSQL atomic persistence and unique billing periods. Proposed route is not proof of live billing.
+
 | Req ID | Method | Path | Allowed Roles | Request Body | Success Response (data) | Validation Rules | Error Codes | DB Dependency | Status |
 |--------|--------|------|---------------|-------------|------------------------|------------------|-------------|---------------|--------|
 | FR-013, FR-017 | POST | /billing/run | Admin | `{ target_date? }` | `{ invoices_created: number, errors: [] }` | Protected trigger; idempotent via UNIQUE(subscription_id, billing_period_start) | 403 | subscriptions, invoices, invoice_lines, discount_redemptions | Proposed |
@@ -192,8 +314,8 @@ Decimal strings with exactly two places: `"99.00"`, `"560.00"`. Never floating-p
 
 | Topic | Repo doc says | This proposal says | Resolution needed |
 |-------|--------------|--------------------|--------------------|
-| Health check data | `{"status":"healthy"}` (API_CONTRACTS.md) | `{"status":"ok"}` with uptime + timestamp | Align on wording — functionally equivalent |
-| Staff creation path | `/api/v1/staff` (api-contracts.md) | `/api/v1/admin/staff` | Decide: either works, but `/admin/staff` makes role obvious |
+| Health check data | `{"status":"healthy"}` (API_CONTRACTS.md) | `{"status":"healthy"}` with uptime + timestamp | Resolved: aligned to `"healthy"` |
+| Staff creation path | `/api/v1/staff` (api-contracts.md) | `/api/v1/staff` (primary) and `/api/v1/admin/staff` (alias) | Resolved: both mounted and working |
 | Billing path | `/api/v1/billing/run-due` (api-contracts.md) | `/api/v1/billing/run` | Minor — needs team decision |
 | Subscription actions path | `/api/v1/subscriptions/:id/actions` (api-contracts.md) | Separate `/portal/subscriptions/:id/{pause,close,renew}` for customer; `/subscriptions/:id/transition` for staff | Clearer role separation; needs Ravi+Sanju approval |
 | Tax path | `/api/v1/tax-rules` (api-contracts.md) | `/api/v1/taxes` | Shorter; either works |

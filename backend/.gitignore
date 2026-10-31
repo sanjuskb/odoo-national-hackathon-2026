@@ -1,0 +1,3 @@
+# Un-ignore backend/src/lib from root .gitignore Python pattern
+!src/lib/
+!src/lib/**
