@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/verify-repository.mjs
+      - run: node scripts/check-secrets.cjs
 
   module-checks:
     name: ${{ matrix.module }} install / lint / build / test
@@ -55,4 +56,37 @@ jobs:
           npm ci --no-audit --no-fund
           npm run --if-present lint
           npm run --if-present build
-          npm run --if-present test
+          npm run test
+
+  billing-tests:
+    name: Deterministic billing unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require and run billing tests when module exists
+        run: |
+          if [ -f billing/package.json ]; then
+            cd billing && npm test
+          else
+            echo "::notice::Sanju billing module not yet integrated; billing tests not run"
+          fi
+
+  pr-branch-flow:
+    name: Branch workflow gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Forbid feature branches merging directly to main
+        env:
+          SOURCE: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          if [[ "$BASE" == "main" && "$SOURCE" != "develop" ]]; then
+            echo "::error::Release PRs must originate from develop; feature work goes to develop first."
+            exit 1
+          fi
+          echo "Branch workflow is valid."
