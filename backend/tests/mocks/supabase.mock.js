@@ -5,6 +5,10 @@ function createSupabaseMock() {
   const productsTable = new Map();
   const variantsTable = new Map();
   const plansTable = new Map();
+  const quotationTemplatesTable = new Map();
+  const quotationTemplateLinesTable = new Map();
+  const subscriptionsTable = new Map();
+  const subscriptionLinesTable = new Map();
 
   function seedUser({ id, email, password = 'Password123!', full_name = 'Test User', role = 'customer', user_metadata = {} }) {
     const user = {
@@ -71,18 +75,84 @@ function createSupabaseMock() {
     return plan;
   }
 
+  function seedQuotationTemplate(t) {
+    const id = t.id || `tmpl-${Math.random().toString(36).substring(2, 9)}`;
+    const template = {
+      id,
+      name: t.name,
+      plan_id: t.plan_id,
+      validity_days: t.validity_days || 30,
+      created_at: t.created_at || new Date().toISOString(),
+      updated_at: t.updated_at || new Date().toISOString(),
+    };
+    quotationTemplatesTable.set(id, template);
+    return template;
+  }
+
+  function seedSubscription(s) {
+    const id = s.id || `sub-${Math.random().toString(36).substring(2, 9)}`;
+    const sub = {
+      id,
+      subscription_number: s.subscription_number,
+      customer_id: s.customer_id,
+      plan_id: s.plan_id,
+      start_date: s.start_date,
+      expiry_date: s.expiry_date,
+      payment_terms: s.payment_terms || 'immediate',
+      status: s.status || 'draft',
+      valid_until: s.valid_until || null,
+      template_id: s.template_id || null,
+      next_billing_date: s.next_billing_date || null,
+      billing_anchor_date: s.billing_anchor_date || null,
+      is_paused: Boolean(s.is_paused),
+      created_at: s.created_at || new Date().toISOString(),
+      updated_at: s.updated_at || new Date().toISOString(),
+    };
+    subscriptionsTable.set(id, sub);
+    return sub;
+  }
+
+  function seedSubscriptionLine(l) {
+    const id = l.id || `line-${Math.random().toString(36).substring(2, 9)}`;
+    const line = {
+      id,
+      subscription_id: l.subscription_id,
+      product_id: l.product_id,
+      variant_id: l.variant_id || null,
+      quantity: l.quantity || 1,
+      unit_price: l.unit_price || '0.00',
+      tax_id: l.tax_id || null,
+      amount: l.amount || '0.00',
+      description: l.description || null,
+      variant_adjustment: l.variant_adjustment || null,
+      tax_rate_percent: l.tax_rate_percent || null,
+      created_at: l.created_at || new Date().toISOString(),
+      updated_at: l.updated_at || new Date().toISOString(),
+    };
+    subscriptionLinesTable.set(id, line);
+    return line;
+  }
+
   function reset() {
     users.clear();
     tokens.clear();
     productsTable.clear();
     variantsTable.clear();
     plansTable.clear();
+    quotationTemplatesTable.clear();
+    quotationTemplateLinesTable.clear();
+    subscriptionsTable.clear();
+    subscriptionLinesTable.clear();
   }
 
   function getTableMap(name) {
     if (name === 'products') return productsTable;
     if (name === 'product_variants') return variantsTable;
     if (name === 'plans') return plansTable;
+    if (name === 'quotation_templates') return quotationTemplatesTable;
+    if (name === 'quotation_template_lines' || name === 'template_lines') return quotationTemplateLinesTable;
+    if (name === 'subscriptions') return subscriptionsTable;
+    if (name === 'subscription_lines') return subscriptionLinesTable;
     return new Map();
   }
 
@@ -96,9 +166,40 @@ function createSupabaseMock() {
     let selectColumns = '*';
     let updatePayload = null;
     let insertPayload = null;
+    let isDelete = false;
 
     async function execute() {
+      // Handle insert
       if (insertPayload) {
+        if (Array.isArray(insertPayload)) {
+          const rows = [];
+          for (const item of insertPayload) {
+            const id = item.id || `id-${Math.random().toString(36).substring(2, 9)}`;
+            const row = {
+              ...item,
+              id,
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: item.updated_at || new Date().toISOString(),
+            };
+            table.set(id, row);
+            rows.push(row);
+          }
+          return { data: rows, error: null, count: rows.length };
+        }
+
+        // Single insert: check unique constraints
+        if (tableName === 'subscriptions' && insertPayload.subscription_number) {
+          for (const existing of subscriptionsTable.values()) {
+            if (existing.subscription_number === insertPayload.subscription_number) {
+              return {
+                data: null,
+                error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+                count: 0,
+              };
+            }
+          }
+        }
+
         const id = insertPayload.id || `id-${Math.random().toString(36).substring(2, 9)}`;
         const row = {
           ...insertPayload,
@@ -116,9 +217,18 @@ function createSupabaseMock() {
         results = results.filter(f);
       }
 
+      // Handle delete
+      if (isDelete) {
+        for (const r of results) {
+          table.delete(r.id);
+        }
+        return { data: results, error: null, count: results.length };
+      }
+
+      // Handle update
       if (updatePayload) {
         if (results.length === 0) {
-          return { data: [], error: { code: 'PGRST116', message: 'No rows found to update', status: 404 }, count: 0 };
+          return { data: [], error: null, count: 0 };
         }
         for (const r of results) {
           const updated = {
@@ -169,10 +279,7 @@ function createSupabaseMock() {
         return builder;
       },
       delete: () => {
-        filters.push((row) => {
-          table.delete(row.id);
-          return false;
-        });
+        isDelete = true;
         return builder;
       },
       eq: (col, val) => {
@@ -181,6 +288,22 @@ function createSupabaseMock() {
       },
       neq: (col, val) => {
         filters.push((row) => row[col] !== val);
+        return builder;
+      },
+      lt: (col, val) => {
+        filters.push((row) => (row[col] ? row[col] < val : false));
+        return builder;
+      },
+      lte: (col, val) => {
+        filters.push((row) => (row[col] ? row[col] <= val : false));
+        return builder;
+      },
+      gt: (col, val) => {
+        filters.push((row) => (row[col] ? row[col] > val : false));
+        return builder;
+      },
+      gte: (col, val) => {
+        filters.push((row) => (row[col] ? row[col] >= val : false));
         return builder;
       },
       ilike: (col, pattern) => {
@@ -218,6 +341,11 @@ function createSupabaseMock() {
       range: (from, to) => {
         rangeFrom = from;
         rangeTo = to;
+        return builder;
+      },
+      limit: (lim) => {
+        rangeFrom = 0;
+        rangeTo = lim - 1;
         return builder;
       },
       single: async () => {
@@ -339,12 +467,19 @@ function createSupabaseMock() {
     seedProduct,
     seedVariant,
     seedPlan,
+    seedQuotationTemplate,
+    seedSubscription,
+    seedSubscriptionLine,
     reset,
     users,
     tokens,
     productsTable,
     variantsTable,
     plansTable,
+    quotationTemplatesTable,
+    quotationTemplateLinesTable,
+    subscriptionsTable,
+    subscriptionLinesTable,
   };
 }
 
