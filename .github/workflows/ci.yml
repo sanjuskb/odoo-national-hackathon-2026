@@ -55,4 +55,20 @@ jobs:
           npm ci --no-audit --no-fund
           npm run --if-present lint
           npm run --if-present build
-          npm run --if-present test
+          npm run test
+
+  billing-tests:
+    name: Deterministic billing unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require and run billing tests when module exists
+        run: |
+          if [ -f billing/package.json ]; then
+            cd billing && npm test
+          else
+            echo "::notice::Sanju billing module not yet integrated; billing tests not run"
+          fi
