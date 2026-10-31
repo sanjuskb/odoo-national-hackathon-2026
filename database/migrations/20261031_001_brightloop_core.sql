@@ -29,7 +29,7 @@ after insert on auth.users for each row execute function public.create_customer_
 -- profiles.role in sync with that server-controlled authoritative source.
 -- A user cannot edit app_metadata via the public Supabase client.
 create or replace function public.sync_brightloop_profile_role()
-returns trigger language plpgsql security definer set search_path = public as $
+returns trigger language plpgsql security definer set search_path = public as $$
 declare v_role text;
 begin
   v_role := new.raw_app_meta_data->>'role';
@@ -39,7 +39,7 @@ begin
   update public.profiles set role=v_role where id=new.id;
   return new;
 end;
-$;
+$$;
 create trigger brightloop_auth_role_metadata_changed
 after update of raw_app_meta_data on auth.users
 for each row execute function public.sync_brightloop_profile_role();
