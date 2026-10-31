@@ -70,3 +70,4 @@ async function sendInvoiceEmail({ invoiceWithDetails, toEmail }) {
 module.exports = {
   sendInvoiceEmail,
 };
+
