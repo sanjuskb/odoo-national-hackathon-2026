@@ -60,6 +60,7 @@ async function getInvoiceWithDetails(id, client = getSupabaseAdmin()) {
 
   return {
     ...invoice,
+    is_overdue: financials.is_overdue,
     lines,
     payments,
     financials: {
@@ -76,11 +77,13 @@ async function list(
   {
     customer_id = null,
     status = null,
+    overdue = null,
     page = 1,
     page_size = 20,
     limit = null,
     due_before = null,
     due_after = null,
+    today = null,
   } = {},
   client = getSupabaseAdmin()
 ) {
@@ -88,6 +91,7 @@ async function list(
   const safePage = Math.max(1, parseInt(page, 10) || 1);
   const safeLimit = Math.min(100, Math.max(1, parseInt(effectiveLimit, 10) || 20));
   const offset = (safePage - 1) * safeLimit;
+  const todayStr = today || new Date().toISOString().slice(0, 10);
 
   let query = client
     .from('invoices')
@@ -96,9 +100,17 @@ async function list(
   if (customer_id) {
     query = query.eq('customer_id', customer_id);
   }
-  if (status) {
+
+  // Handle overdue filter: ?overdue=true or ?status=overdue
+  const isOverdueQuery = status === 'overdue' || overdue === true;
+  if (isOverdueQuery) {
+    query = query.eq('status', 'confirmed').lt('due_date', todayStr);
+  } else if (overdue === false) {
+    query = query.gte('due_date', todayStr);
+  } else if (status) {
     query = query.eq('status', status);
   }
+
   if (due_before) {
     query = query.lte('due_date', due_before);
   }
@@ -146,6 +158,7 @@ async function list(
     const financials = computeInvoiceFinancials(mapped, payments);
     return {
       ...mapped,
+      is_overdue: financials.is_overdue,
       financials: {
         total: financials.total,
         paid_amount: financials.paid_amount,

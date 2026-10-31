@@ -111,6 +111,54 @@ describe('Phase 5 Invoices Suite (API Endpoints & Lifecycle)', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.items[0].id).toBe('11111111-1111-4111-8111-111111111101');
     });
+
+    it('exposes stored status confirmed and is_overdue true when overdue, never returns status overdue', async () => {
+      const invId = '11111111-1111-4111-8111-111111111199';
+      mock.seedInvoice({
+        id: invId,
+        invoice_number: 'INV-202610-000099',
+        customer_id: customer1Id,
+        status: 'confirmed',
+        due_date: '2026-10-01', // Past due date
+        total: '1000.00',
+      });
+
+      // 1. GET /invoices/:id
+      const resDetail = await request(app)
+        .get(`/api/v1/invoices/${invId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(resDetail.status).toBe(200);
+      expect(resDetail.body.data.invoice.status).toBe('confirmed');
+      expect(resDetail.body.data.invoice.status).not.toBe('overdue');
+      expect(resDetail.body.data.invoice.is_overdue).toBe(true);
+      expect(resDetail.body.data.invoice.financials.is_overdue).toBe(true);
+
+      // 2. Query with ?overdue=true
+      const resFilter = await request(app)
+        .get('/api/v1/invoices?overdue=true')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(resFilter.status).toBe(200);
+      expect(resFilter.body.data.items.length).toBeGreaterThan(0);
+      const found = resFilter.body.data.items.find((i) => i.id === invId);
+      expect(found).toBeDefined();
+      expect(found.status).toBe('confirmed');
+      expect(found.status).not.toBe('overdue');
+      expect(found.is_overdue).toBe(true);
+
+      // 3. Query with ?status=overdue as alias for ?overdue=true
+      const resAlias = await request(app)
+        .get('/api/v1/invoices?status=overdue')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(resAlias.status).toBe(200);
+      const foundAlias = resAlias.body.data.items.find((i) => i.id === invId);
+      expect(foundAlias).toBeDefined();
+      expect(foundAlias.status).toBe('confirmed');
+      expect(foundAlias.status).not.toBe('overdue');
+      expect(foundAlias.is_overdue).toBe(true);
+    });
   });
 
   describe('GET /api/v1/invoices/:id', () => {

@@ -14,6 +14,7 @@ async function listInvoices(req, res, next) {
       page_size: req.query.page_size,
       limit: req.query.limit,
       status: req.query.status,
+      overdue: req.query.overdue,
       due_before: req.query.due_before,
       due_after: req.query.due_after,
     };
