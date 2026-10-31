@@ -102,8 +102,11 @@ create table public.subscription_lines (
   product_id uuid not null references public.products(id),
   variant_id uuid references public.product_variants(id),
   quantity integer not null check(quantity>0),
+  description text not null,
   unit_price numeric(14,2) not null check(unit_price>=0),
-  tax_rate_percent numeric(5,2) not null default 0 check(tax_rate_percent between 0 and 100)
+  variant_adjustment numeric(14,2) not null default 0,
+  tax_rate_percent numeric(5,2) not null default 0 check(tax_rate_percent between 0 and 100),
+  check(unit_price+variant_adjustment>=0)
 );
 create table public.discount_rules (
   id uuid primary key default gen_random_uuid(),
