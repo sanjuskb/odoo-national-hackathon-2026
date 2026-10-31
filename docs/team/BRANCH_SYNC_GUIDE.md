@@ -28,3 +28,9 @@ Only after integrated end-to-end tests: open `develop → main` release PR, revi
 
 ## After a merged PR
 Deleting a *merged, obsolete* feature branch is optional cleanup. GitHub's Active tab is informational. Never delete a teammate's active branch without its owner confirming all work is safely merged.
+
+## Automated branch-flow guard (31 October)
+
+CI checks proposed PRs so only a `develop` source branch targets protected `main` during normal releases. Feature PRs should target `develop`. This check prevents mistakes **only if GitHub branch protection requires the 'Branch workflow gate' check**; a passing job alone cannot impose repository settings. An emergency hotfix requires explicit team approval and a deliberately documented exception.
+
+CI additionally scans tracked files for common secret signatures. This is a basic guard, not a guarantee that no private credentials exist anywhere. Rotate any confirmed exposed key.
