@@ -11,7 +11,11 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from ai.src.core.config import get_settings
-from ai.src.core.exceptions import CrossCustomerAccessError
+from ai.src.core.exceptions import (
+    BackendApiError,
+    BackendConnectionError,
+    CrossCustomerAccessError,
+)
 from ai.src.utils.logging import get_logger
 
 logger = get_logger("ai.integrations.backend_client")
@@ -72,16 +76,36 @@ class HttpBackendClient(BaseBackendClient):
             headers["Authorization"] = f"Bearer {token}"
         return headers
 
+    def _handle_response(self, res: httpx.Response, endpoint: str) -> Dict[str, Any]:
+        if res.is_success:
+            return res.json()
+        status_code = res.status_code
+        try:
+            err_json = res.json()
+            msg = err_json.get("message") or f"HTTP {status_code}"
+        except Exception:
+            msg = f"HTTP {status_code}: {res.text[:100]}"
+
+        raise BackendApiError(
+            status_code=status_code,
+            message=f"{endpoint} failed - {msg}",
+            details={"endpoint": endpoint, "status_code": status_code},
+        )
+
     def get_available_plans(self) -> List[Dict[str, Any]]:
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
                 res = client.get("/plans")
-                if res.is_success:
-                    payload = res.json()
-                    return payload.get("data", {}).get("items", [])
+                payload = self._handle_response(res, "GET /plans")
+                return payload.get("data", {}).get("items", [])
+        except BackendApiError:
+            raise
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise BackendConnectionError(
+                f"Express backend unreachable at {self.base_url}/plans: {str(exc)}"
+            )
         except Exception as exc:
-            logger.warning("Failed to fetch plans from backend: %s", str(exc))
-        return []
+            raise BackendConnectionError(f"Backend plans query failed: {str(exc)}")
 
     def get_customer_subscriptions(
         self, customer_id: str, token: Optional[str] = None
@@ -89,12 +113,16 @@ class HttpBackendClient(BaseBackendClient):
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
                 res = client.get("/portal/subscriptions", headers=self._headers(token))
-                if res.is_success:
-                    payload = res.json()
-                    return payload.get("data", {}).get("items", [])
+                payload = self._handle_response(res, "GET /portal/subscriptions")
+                return payload.get("data", {}).get("items", [])
+        except BackendApiError:
+            raise
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise BackendConnectionError(
+                f"Express backend unreachable at {self.base_url}/portal/subscriptions: {str(exc)}"
+            )
         except Exception as exc:
-            logger.warning("Failed to fetch customer subscriptions: %s", str(exc))
-        return []
+            raise BackendConnectionError(f"Backend subscriptions query failed: {str(exc)}")
 
     def get_customer_invoices(
         self, customer_id: str, token: Optional[str] = None
@@ -102,12 +130,16 @@ class HttpBackendClient(BaseBackendClient):
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
                 res = client.get("/portal/invoices", headers=self._headers(token))
-                if res.is_success:
-                    payload = res.json()
-                    return payload.get("data", {}).get("items", [])
+                payload = self._handle_response(res, "GET /portal/invoices")
+                return payload.get("data", {}).get("items", [])
+        except BackendApiError:
+            raise
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise BackendConnectionError(
+                f"Express backend unreachable at {self.base_url}/portal/invoices: {str(exc)}"
+            )
         except Exception as exc:
-            logger.warning("Failed to fetch customer invoices: %s", str(exc))
-        return []
+            raise BackendConnectionError(f"Backend customer invoices query failed: {str(exc)}")
 
     def get_invoice_detail(
         self, invoice_id: str, customer_id: str, token: Optional[str] = None
@@ -115,17 +147,23 @@ class HttpBackendClient(BaseBackendClient):
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
                 res = client.get(f"/invoices/{invoice_id}", headers=self._headers(token))
-                if res.is_success:
-                    invoice = res.json().get("data", {}).get("invoice")
-                    if invoice and invoice.get("customer_id") == customer_id:
-                        return invoice
-                    else:
-                        raise CrossCustomerAccessError("Customer is not authorized to view this invoice")
-        except CrossCustomerAccessError:
+                payload = self._handle_response(res, f"GET /invoices/{invoice_id}")
+                invoice = payload.get("data", {}).get("invoice")
+                if not invoice:
+                    return None
+                if invoice.get("customer_id") != customer_id:
+                    raise CrossCustomerAccessError(
+                        f"Customer {customer_id} is not authorized to access invoice {invoice_id}"
+                    )
+                return invoice
+        except (BackendApiError, CrossCustomerAccessError):
             raise
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise BackendConnectionError(
+                f"Express backend unreachable at {self.base_url}/invoices/{invoice_id}: {str(exc)}"
+            )
         except Exception as exc:
-            logger.warning("Failed to fetch invoice detail: %s", str(exc))
-        return None
+            raise BackendConnectionError(f"Backend invoice query failed: {str(exc)}")
 
     def get_customer_profile(
         self, customer_id: str, token: Optional[str] = None
@@ -133,11 +171,16 @@ class HttpBackendClient(BaseBackendClient):
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
                 res = client.get("/auth/me", headers=self._headers(token))
-                if res.is_success:
-                    return res.json().get("data", {}).get("user")
+                payload = self._handle_response(res, "GET /auth/me")
+                return payload.get("data", {}).get("user")
+        except BackendApiError:
+            raise
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise BackendConnectionError(
+                f"Express backend unreachable at {self.base_url}/auth/me: {str(exc)}"
+            )
         except Exception as exc:
-            logger.warning("Failed to fetch customer profile: %s", str(exc))
-        return None
+            raise BackendConnectionError(f"Backend profile query failed: {str(exc)}")
 
 
 class MockBackendClient(BaseBackendClient):
@@ -258,26 +301,29 @@ class MockBackendClient(BaseBackendClient):
                     "line_total": "53.90",
                 }
             ],
-            "discounts": [],
             "taxes": [
-                {"name": "Standard GST", "rate_percentage": "10.00", "amount": "4.90"}
+                {
+                    "name": "Standard GST",
+                    "rate_percentage": "10.00",
+                    "amount": "4.90",
+                }
             ],
-            "payments": [],
+            "discounts": [],
         },
         "inv-302": {
             "id": "inv-302",
             "invoice_number": "INV-2026-0002",
             "customer_id": "cust-202",
             "subscription_id": "sub-202",
-            "status": "paid",
+            "status": "confirmed",
             "issue_date": "2026-10-15",
             "due_date": "2026-10-30",
             "currency": "USD",
             "subtotal": "19.00",
             "total_discount": "0.00",
-            "total_tax": "1.90",
-            "total_amount": "20.90",
-            "amount_paid": "20.90",
+            "total_tax": "0.00",
+            "total_amount": "19.00",
+            "amount_paid": "19.00",
             "outstanding_balance": "0.00",
             "lines": [
                 {
@@ -285,17 +331,12 @@ class MockBackendClient(BaseBackendClient):
                     "product_name": "Starter Plan Subscription",
                     "quantity": 1,
                     "unit_price": "19.00",
-                    "tax_amount": "1.90",
-                    "line_total": "20.90",
+                    "tax_amount": "0.00",
+                    "line_total": "19.00",
                 }
             ],
+            "taxes": [],
             "discounts": [],
-            "taxes": [
-                {"name": "Standard GST", "rate_percentage": "10.00", "amount": "1.90"}
-            ],
-            "payments": [
-                {"id": "pay-01", "method": "manual_bank_transfer", "amount": "20.90", "payment_date": "2026-10-16"}
-            ],
         },
     }
 
@@ -335,63 +376,53 @@ class MockBackendClient(BaseBackendClient):
         return dict(profile) if profile else None
 
 
-
 class ResilientBackendClient(BaseBackendClient):
     """
-    Live backend client that targets Express /api/v1 via HttpBackendClient.
-    When a route is not yet merged/implemented on Express (e.g. returns 404)
-    or backend server is offline, it safely falls back to MockBackendClient
-    fixtures with clear logging so evaluation never crashes.
+    Backend client with explicit LIVE versus MOCK/DEMO modes.
+
+    - 'live': Connects strictly to Express API (/api/v1).
+              Never silently falls back to fixture data when Express returns
+              404, 401, 403, 500 or is unavailable. Raises clear BackendIntegrationError.
+    - 'mock' / 'demo': Uses verified local fixtures directly for deterministic evaluation.
     """
 
     def __init__(
         self,
+        mode: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout_seconds: Optional[float] = None,
     ):
+        settings = get_settings()
+        self.mode = (mode or getattr(settings, "backend_mode", "mock")).lower()
         self.http_client = HttpBackendClient(base_url=base_url, timeout_seconds=timeout_seconds)
         self.mock_client = MockBackendClient()
 
     def get_available_plans(self) -> List[Dict[str, Any]]:
-        plans = self.http_client.get_available_plans()
-        if plans:
-            return plans
-        logger.info("Live plans endpoint unavailable on Express; using standard fixtures.")
+        if self.mode == "live":
+            return self.http_client.get_available_plans()
         return self.mock_client.get_available_plans()
 
     def get_customer_subscriptions(
         self, customer_id: str, token: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        subs = self.http_client.get_customer_subscriptions(customer_id=customer_id, token=token)
-        if subs:
-            return subs
-        logger.info("Live customer subscriptions endpoint unavailable; using standard fixtures.")
+        if self.mode == "live":
+            return self.http_client.get_customer_subscriptions(customer_id=customer_id, token=token)
         return self.mock_client.get_customer_subscriptions(customer_id=customer_id, token=token)
 
     def get_customer_invoices(
         self, customer_id: str, token: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        invoices = self.http_client.get_customer_invoices(customer_id=customer_id, token=token)
-        if invoices:
-            return invoices
-        logger.info("Live customer invoices endpoint unavailable; using standard fixtures.")
+        if self.mode == "live":
+            return self.http_client.get_customer_invoices(customer_id=customer_id, token=token)
         return self.mock_client.get_customer_invoices(customer_id=customer_id, token=token)
 
     def get_invoice_detail(
         self, invoice_id: str, customer_id: str, token: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        try:
-            invoice = self.http_client.get_invoice_detail(
+        if self.mode == "live":
+            return self.http_client.get_invoice_detail(
                 invoice_id=invoice_id, customer_id=customer_id, token=token
             )
-            if invoice:
-                return invoice
-        except CrossCustomerAccessError:
-            raise
-        except Exception as exc:
-            logger.warning("HttpBackendClient error on invoice detail: %s", str(exc))
-
-        logger.info("Live invoice detail unavailable from Express; using verified fixture for %s.", invoice_id)
         return self.mock_client.get_invoice_detail(
             invoice_id=invoice_id, customer_id=customer_id, token=token
         )
@@ -399,13 +430,10 @@ class ResilientBackendClient(BaseBackendClient):
     def get_customer_profile(
         self, customer_id: str, token: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        profile = self.http_client.get_customer_profile(customer_id=customer_id, token=token)
-        if profile:
-            return profile
-        logger.info("Live customer profile unavailable; using verified fixture for %s.", customer_id)
+        if self.mode == "live":
+            return self.http_client.get_customer_profile(customer_id=customer_id, token=token)
         return self.mock_client.get_customer_profile(customer_id=customer_id, token=token)
 
 
 # Backwards compatibility alias
 BackendClient = HttpBackendClient
-

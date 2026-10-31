@@ -38,6 +38,7 @@ class AISettings(BaseSettings):
         default=10.0, alias="BACKEND_TIMEOUT_SECONDS"
     )
     ai_service_enabled: bool = Field(default=True, alias="AI_SERVICE_ENABLED")
+    backend_mode: str = Field(default="mock", alias="BACKEND_MODE")  # "live" | "mock" | "demo"
 
     # Model & Inference
     model_name: str = Field(

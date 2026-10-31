@@ -128,3 +128,27 @@ class ConsentRequiredError(SecurityError):
     def __init__(self, message: str = "Customer consent required for voice assistance", details: Optional[Dict[str, Any]] = None):
         super().__init__(message=message, code="CONSENT_REQUIRED", details=details)
 
+
+class BackendIntegrationError(AIError):
+    """Base error for Express backend communication failures."""
+
+    def __init__(self, message: str, code: str = "BACKEND_INTEGRATION_ERROR", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, code=code, details=details)
+
+
+class BackendConnectionError(BackendIntegrationError):
+    """Raised when Express backend server is offline, unreachable, or times out in LIVE mode."""
+
+    def __init__(self, message: str = "Failed to connect to Express backend", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, code="BACKEND_CONNECTION_ERROR", details=details)
+
+
+class BackendApiError(BackendIntegrationError):
+    """Raised when Express backend returns an HTTP error status (404, 401, 403, 500) in LIVE mode."""
+
+    def __init__(self, status_code: int, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=f"Express backend HTTP {status_code}: {message}",
+            code=f"BACKEND_HTTP_{status_code}",
+            details={"status_code": status_code, **(details or {})},
+        )

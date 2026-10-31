@@ -115,11 +115,26 @@ class InvoiceExplanationService:
         if not invoice:
             raise ValidationError(f"Invoice {request.invoice_id} not found for this account")
 
-        # 2. Extract structured lines for response envelope
+        # 2. Normalize financial amounts across both Express backend and fixture responses
+        subtotal = str(invoice.get("subtotal", "0.00"))
+        total_discount = str(invoice.get("total_discount") or invoice.get("discount_total") or "0.00")
+        total_tax = str(invoice.get("total_tax") or invoice.get("tax_total") or "0.00")
+        total_amount = str(invoice.get("total_amount") or invoice.get("total") or "0.00")
+        amount_paid = str(
+            invoice.get("amount_paid")
+            or invoice.get("financials", {}).get("paid_amount")
+            or "0.00"
+        )
+        outstanding_balance = str(
+            invoice.get("outstanding_balance")
+            or invoice.get("financials", {}).get("balance_due")
+            or total_amount
+        )
+
         lines_expl = [
             InvoiceLineExplanation(
-                product_name=line.get("product_name", "Subscription Item"),
-                quantity=line.get("quantity", 1),
+                product_name=line.get("product_name") or line.get("description") or "Subscription Item",
+                quantity=int(line.get("quantity", 1)),
                 unit_price=str(line.get("unit_price", "0.00")),
                 tax_amount=str(line.get("tax_amount", "0.00")),
                 line_total=str(line.get("line_total", "0.00")),
@@ -155,12 +170,12 @@ class InvoiceExplanationService:
             line_items_formatted=self._format_lines(invoice.get("lines", [])),
             discounts_formatted=self._format_discounts(invoice.get("discounts", [])),
             taxes_formatted=self._format_taxes(invoice.get("taxes", [])),
-            subtotal=invoice.get("subtotal", "0.00"),
-            total_discount=invoice.get("total_discount", "0.00"),
-            total_tax=invoice.get("total_tax", "0.00"),
-            total_amount=invoice.get("total_amount", "0.00"),
-            amount_paid=invoice.get("amount_paid", "0.00"),
-            outstanding_balance=invoice.get("outstanding_balance", "0.00"),
+            subtotal=subtotal,
+            total_discount=total_discount,
+            total_tax=total_tax,
+            total_amount=total_amount,
+            amount_paid=amount_paid,
+            outstanding_balance=outstanding_balance,
         )
 
         user_prompt = "Please explain the charges, taxes, discounts, and payment status for this invoice in clear, simple language."
@@ -182,12 +197,12 @@ class InvoiceExplanationService:
             status=invoice.get("status", "unknown"),
             due_date=invoice.get("due_date", "N/A"),
             currency=invoice.get("currency", "USD"),
-            subtotal=str(invoice.get("subtotal", "0.00")),
-            total_tax=str(invoice.get("total_tax", "0.00")),
-            total_discount=str(invoice.get("total_discount", "0.00")),
-            total_amount=str(invoice.get("total_amount", "0.00")),
-            amount_paid=str(invoice.get("amount_paid", "0.00")),
-            outstanding_balance=str(invoice.get("outstanding_balance", "0.00")),
+            subtotal=subtotal,
+            total_tax=total_tax,
+            total_discount=total_discount,
+            total_amount=total_amount,
+            amount_paid=amount_paid,
+            outstanding_balance=outstanding_balance,
             lines=lines_expl,
             taxes=taxes_expl,
             discounts=discounts_expl,

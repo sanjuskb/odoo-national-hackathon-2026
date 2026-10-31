@@ -139,3 +139,80 @@ test('recurrence preserves anchor day across leap year boundary', () => {
   const next4 = nextBillingDate(next3, 'yearly', start);
   assert.equal(next4, '2028-02-29'); // Leap day restored on next leap year!
 });
+
+
+test('canonical billing runner and repository match exact Harsha persist_due_billing_invoice RPC contract', async () => {
+  const originalEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'test';
+  try {
+  const { createSupabaseBillingRepository } = require('../../backend/src/services/supabaseBillingRepository.cjs');
+  let capturedRpc = null;
+  let capturedPayload = null;
+
+  const mockSupabaseClient = {
+    rpc: async (functionName, payload) => {
+      capturedRpc = functionName;
+      capturedPayload = payload;
+      return {
+        data: [{ result_status: 'created', result_invoice_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' }],
+        error: null
+      };
+    }
+  };
+
+  const repo = createSupabaseBillingRepository({
+    client: mockSupabaseClient,
+    env: { BILLING_DUE_DAYS: '15' }
+  });
+
+  const invoice = {
+    subtotal: '49.00',
+    taxTotal: '4.90',
+    discountTotal: '0.00',
+    total: '53.90',
+    invoiceLines: [
+      {
+        productId: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b22',
+        title: 'Professional Plan',
+        quantity: 1,
+        unitPrice: '49.00',
+        variantAdjustment: '0.00',
+        taxPercent: '10.00',
+        taxAmount: '4.90',
+        baseAmount: '49.00',
+        discountAmount: '0.00',
+        lineTotal: '53.90'
+      }
+    ],
+    appliedDiscounts: []
+  };
+
+  const result = await repo.persistInvoiceAtomically({
+    subscriptionId: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380c33',
+    expectedNextBillingDate: '2026-10-31',
+    nextBillingDate: '2026-11-30',
+    invoice
+  });
+
+  // 1. Verify RPC function name
+  assert.equal(capturedRpc, 'persist_due_billing_invoice');
+
+  // 2. Verify all 10 SQL parameters match 20261031_002_atomic_billing_rpc.sql
+  assert.equal(capturedPayload.p_subscription_id, 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380c33');
+  assert.equal(capturedPayload.p_expected_date, '2026-10-31');
+  assert.equal(capturedPayload.p_next_date, '2026-11-30');
+  assert.equal(capturedPayload.p_due_date, '2026-11-15');
+  assert.equal(capturedPayload.p_subtotal, '49.00');
+  assert.equal(capturedPayload.p_tax_total, '4.90');
+  assert.equal(capturedPayload.p_discount_total, '0.00');
+  assert.equal(capturedPayload.p_total, '53.90');
+  assert.deepEqual(capturedPayload.p_lines, invoice.invoiceLines);
+  assert.deepEqual(capturedPayload.p_discounts, invoice.appliedDiscounts);
+
+  // 3. Verify returned mapping
+  assert.equal(result.status, 'created');
+  assert.equal(result.invoiceId, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
+  } finally {
+    process.env.NODE_ENV = originalEnv;
+  }
+});

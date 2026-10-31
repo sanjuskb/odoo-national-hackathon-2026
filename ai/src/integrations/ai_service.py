@@ -17,6 +17,8 @@ from ai.src.assistant.chatbot import CustomerAssistantOrchestrator
 from ai.src.assistant.models import CustomerChatRequest
 from ai.src.core.config import get_settings
 from ai.src.core.exceptions import (
+    BackendApiError,
+    BackendConnectionError,
     AuthenticationRequiredError,
     ConfigurationError,
     CrossCustomerAccessError,
@@ -73,10 +75,8 @@ def create_app() -> FastAPI:
     else:
         telephony_provider = MockTelephonyProvider()
 
-    if not settings.use_mock_providers:
-        backend_client = ResilientBackendClient()
-    else:
-        backend_client = MockBackendClient()
+    # Backend client with explicit LIVE vs MOCK/DEMO mode
+    backend_client = ResilientBackendClient(mode=settings.backend_mode)
 
     # Core AI domain services
     assistant_orchestrator = CustomerAssistantOrchestrator(
@@ -125,15 +125,25 @@ def create_app() -> FastAPI:
         }
 
     @app.post("/assistant/chat", status_code=status.HTTP_200_OK)
-    def chat_endpoint(request: CustomerChatRequest) -> Dict[str, Any]:
+    def chat_endpoint(request: CustomerChatRequest, raw_req: Request) -> Dict[str, Any]:
         """Grounded, authenticated customer assistant conversation endpoint."""
         try:
+            # Forward Bearer JWT from Authorization header if not already set in context
+            auth_header = raw_req.headers.get("authorization", "")
+            if auth_header.startswith("Bearer ") and not request.context.session_token:
+                request.context.session_token = auth_header[7:].strip()
+
             response = assistant_orchestrator.process_chat(request)
             return response.model_dump()
         except AuthenticationRequiredError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.to_dict())
         except CrossCustomerAccessError as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.to_dict())
+        except BackendApiError as exc:
+            status_code = exc.details.get("status_code", status.HTTP_502_BAD_GATEWAY)
+            raise HTTPException(status_code=status_code, detail=exc.to_dict())
+        except BackendConnectionError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.to_dict())
         except Exception as exc:
             logger.error("Error in chat endpoint: %s", str(exc))
             raise HTTPException(
@@ -142,9 +152,14 @@ def create_app() -> FastAPI:
             )
 
     @app.post("/invoice/explain", status_code=status.HTTP_200_OK)
-    def invoice_explain_endpoint(request: InvoiceExplanationRequest) -> Dict[str, Any]:
+    def invoice_explain_endpoint(request: InvoiceExplanationRequest, raw_req: Request) -> Dict[str, Any]:
         """AI Invoice Explanation service endpoint."""
         try:
+            # Forward Bearer JWT from Authorization header if not already set in request
+            auth_header = raw_req.headers.get("authorization", "")
+            if auth_header.startswith("Bearer ") and not request.session_token:
+                request.session_token = auth_header[7:].strip()
+
             response = invoice_service.explain_invoice(request)
             return response.model_dump()
         except AuthenticationRequiredError as exc:
@@ -153,6 +168,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.to_dict())
         except ValidationError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.to_dict())
+        except BackendApiError as exc:
+            status_code = exc.details.get("status_code", status.HTTP_502_BAD_GATEWAY)
+            raise HTTPException(status_code=status_code, detail=exc.to_dict())
+        except BackendConnectionError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.to_dict())
         except Exception as exc:
             logger.error("Error in invoice explanation endpoint: %s", str(exc))
             raise HTTPException(
