@@ -269,3 +269,4 @@ WHERE i.status = 'confirmed'
   AND i.due_date < CURRENT_DATE
 GROUP BY i.id, i.subscription_id, i.customer_id, i.due_date, i.total
 HAVING (i.total - COALESCE(SUM(p.amount), 0)) > 0;
+

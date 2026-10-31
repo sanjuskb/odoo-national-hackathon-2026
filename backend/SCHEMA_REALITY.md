@@ -575,3 +575,4 @@ Every Supabase call in `backend/src/repositories/` is documented below with exac
    - Intended to return aggregate MRR, ARR, overdue count, and payment totals in a single database RPC roundtrip.
    - **Backend Mitigation**: Implemented resilient chunked aggregation (`chunkArray(1000)` with bounded concurrency) in `backend/src/repositories/reports.repository.js`. Automatically attempts RPC first; falls back cleanly to Node.js integer money math without failure.
    - Proposed as P1 RPC migration in `backend/SCHEMA_GAPS.sql`.
+
