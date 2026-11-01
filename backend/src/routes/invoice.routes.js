@@ -17,6 +17,8 @@ const {
   cancelInvoice,
   sendInvoice,
   printInvoice,
+  explainInvoice,
+  speakInvoice,
 } = require('../controllers/invoice.controller');
 const {
   recordPayment,
@@ -75,6 +77,24 @@ router.get(
   requireRole(['admin', 'staff', 'customer']),
   validate(idParamSchema, 'params'),
   printInvoice
+);
+
+// AI Invoice Explanation
+router.post(
+  '/:id/explain',
+  authenticate,
+  requireRole(['admin', 'staff', 'customer']),
+  validate(idParamSchema, 'params'),
+  explainInvoice
+);
+
+// AI Voice Speech Synthesis for invoice explanation
+router.post(
+  '/:id/speak',
+  authenticate,
+  requireRole(['admin', 'staff', 'customer']),
+  validate(idParamSchema, 'params'),
+  speakInvoice
 );
 
 // Record payment on invoice (Staff & Admin only)

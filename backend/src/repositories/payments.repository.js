@@ -188,10 +188,8 @@ async function recordPayment(
     const paymentPayload = {
       invoice_id,
       amount: amountFormatted,
-      payment_date: paymentDate,
       paid_at: paidAtTimestamp,
       method,
-      reference: reference || null,
       external_reference: reference || null,
       note: note || null,
     };

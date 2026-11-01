@@ -1,15 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Repeat,
   DollarSign,
   Clock,
   AlertTriangle,
-  Download,
-  Calendar,
   Sparkles,
-  BarChart3,
-  Layers,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Card,
@@ -19,32 +16,109 @@ import {
   CardContent,
   Badge,
   Button,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
   EmptyState,
 } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
+import { api } from '@/api/client';
+import { useNavigate } from 'react-router-dom';
 
 export const DashboardPage: React.FC = () => {
-  const [dateFilter, setDateFilter] = useState('Current Billing Month (Oct 2026)');
+  const [summary, setSummary] = useState<any>(null);
+  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
+  const [activeSubsCount, setActiveSubsCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [runningBilling, setRunningBilling] = useState<boolean>(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Unpopulated KPI placeholders clearly marked as pending backend metrics
-  const metricPlaceholders = [
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const [sumRes, invRes, subRes] = await Promise.all([
+        api.get<any>('/reports/summary?refresh=true'),
+        api.get<any>('/invoices?limit=5'),
+        api.get<any>('/subscriptions?status=active'),
+      ]);
+
+      if (sumRes.success && sumRes.data) {
+        setSummary(sumRes.data);
+      }
+      if (invRes.success && invRes.data?.items) {
+        setRecentInvoices(invRes.data.items.slice(0, 5));
+      }
+      if (subRes.success && subRes.data?.items) {
+        setActiveSubsCount(subRes.data.items.length);
+      }
+    } catch {
+      toast({ title: 'Error', message: 'Failed to refresh financial metrics', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const handleRunBilling = async () => {
+    setRunningBilling(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await api.post<any>('/billing/run', { target_date: today });
+      if (res.success && res.data) {
+        toast({
+          title: 'Billing Batch Complete',
+          message: `Created: ${res.data.created}, Already Existed: ${res.data.alreadyExists}`,
+          type: 'success',
+        });
+        fetchDashboardData();
+      } else {
+        toast({
+          title: 'Billing Run Issue',
+          message: res.message || 'No due invoices to process for today.',
+          type: 'info',
+        });
+      }
+    } catch {
+      toast({ title: 'Error', message: 'Network error executing billing run', type: 'error' });
+    } finally {
+      setRunningBilling(false);
+    }
+  };
+
+  const metrics = [
     {
       title: 'Active Subscriptions',
+      value: summary?.active_subscriptions ?? activeSubsCount ?? 0,
+      subtext: `${summary?.paused_subscriptions ?? 0} paused contracts`,
       icon: <Repeat className="w-5 h-5 text-blue-600" />,
       bg: 'bg-blue-50',
     },
     {
       title: 'Revenue Collected',
+      value: summary ? `₹${summary.revenue_collected}` : '₹0.00',
+      subtext: `Total invoiced: ₹${summary?.revenue_invoiced ?? '0.00'}`,
       icon: <DollarSign className="w-5 h-5 text-emerald-600" />,
       bg: 'bg-emerald-50',
     },
     {
       title: 'Outstanding Receivables',
+      value: summary ? `₹${summary.outstanding_balance}` : '₹0.00',
+      subtext: 'Awaiting customer settlement',
       icon: <Clock className="w-5 h-5 text-amber-600" />,
       bg: 'bg-amber-50',
     },
     {
       title: 'Overdue Invoices',
+      value: summary?.overdue_count ?? 0,
+      subtext: summary?.overdue_amount ? `Total: ₹${summary.overdue_amount}` : 'None overdue',
       icon: <AlertTriangle className="w-5 h-5 text-rose-600" />,
       bg: 'bg-rose-50',
     },
@@ -62,9 +136,7 @@ export const DashboardPage: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Subscription & Revenue Insights
-            <span className="text-xs font-normal bg-amber-50 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
-              Awaiting Backend Data
-            </span>
+            <Badge variant="success">Live Supabase Feed</Badge>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Real-time financial status, automated recurring billing pulse, and invoice collections.
@@ -72,33 +144,20 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Date range filter dropdown UI */}
-          <div className="flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-2xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 mr-2" />
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
-            >
-              <option>Current Billing Month (Oct 2026)</option>
-              <option>Last Quarter (Q3 2026)</option>
-              <option>Year to Date (2026)</option>
-            </select>
-          </div>
-
           <Button
             variant="outline"
             size="sm"
-            disabled
-            leftIcon={<Download className="w-3.5 h-3.5" />}
+            onClick={fetchDashboardData}
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />}
           >
-            Export
+            Refresh
           </Button>
 
           <Button
             variant="primary"
             size="sm"
-            disabled
+            isLoading={runningBilling}
+            onClick={handleRunBilling}
             leftIcon={<Sparkles className="w-3.5 h-3.5" />}
           >
             Run Due Billing
@@ -106,9 +165,9 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Cards Grid - Strict Empty / Design Placeholder States */}
+      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricPlaceholders.map((item, idx) => (
+        {metrics.map((item, idx) => (
           <motion.div key={idx} variants={fadeInUp}>
             <Card className="h-full border-slate-200/90 shadow-2xs">
               <div className="flex items-center justify-between">
@@ -118,11 +177,11 @@ export const DashboardPage: React.FC = () => {
                 <div className={`p-2 rounded-lg ${item.bg}`}>{item.icon}</div>
               </div>
               <div className="mt-4">
-                <div className="text-2xl font-bold tracking-tight text-slate-400">
-                  —
+                <div className="text-2xl font-bold tracking-tight text-slate-900">
+                  {item.value}
                 </div>
-                <div className="mt-2 flex items-center text-[11px] text-slate-400">
-                  <span>Pending API data</span>
+                <div className="mt-2 flex items-center text-[11px] text-slate-500">
+                  <span>{item.subtext}</span>
                 </div>
               </div>
             </Card>
@@ -130,78 +189,147 @@ export const DashboardPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Chart & Breakdown Section - Honest Empty States */}
+      {/* Breakdown Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main Recurring Revenue Trend Card */}
         <motion.div variants={fadeInUp} className="lg:col-span-2">
           <Card className="h-full flex flex-col justify-between">
             <CardHeader>
               <div>
-                <CardTitle>Monthly Recurring Revenue (MRR) Pulse</CardTitle>
+                <CardTitle>Financial Reconciliation Pulse</CardTitle>
                 <CardDescription>
-                  Normalized monthly recurring billing trajectory across active plans.
+                  Reconciled billing summary from authoritative PostgreSQL ledger
                 </CardDescription>
               </div>
-              <Badge variant="neutral">Not Connected</Badge>
+              <Badge variant="success">Reconciled</Badge>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col items-center justify-center py-12">
-              <div className="flex flex-col items-center justify-center text-center max-w-sm">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3">
-                  <BarChart3 className="w-6 h-6" />
+            <CardContent className="py-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <span className="text-[11px] font-medium text-slate-500 block">Total Invoiced</span>
+                  <span className="text-lg font-bold text-slate-900 mt-1 block">
+                    ₹{summary?.revenue_invoiced ?? '0.00'}
+                  </span>
                 </div>
-                <h4 className="text-sm font-semibold text-slate-800">No Revenue Data to Display</h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  Once Amarnadh implements `/api/v1/reports/overview` and subscriptions are seeded, the recurring revenue trajectory will render here.
-                </p>
+                <div className="p-4 bg-emerald-50 rounded-xl">
+                  <span className="text-[11px] font-medium text-emerald-700 block">Total Collected</span>
+                  <span className="text-lg font-bold text-emerald-950 mt-1 block">
+                    ₹{summary?.revenue_collected ?? '0.00'}
+                  </span>
+                </div>
+                <div className="p-4 bg-amber-50 rounded-xl">
+                  <span className="text-[11px] font-medium text-amber-700 block">Receivables</span>
+                  <span className="text-lg font-bold text-amber-950 mt-1 block">
+                    ₹{summary?.outstanding_balance ?? '0.00'}
+                  </span>
+                </div>
+                <div className="p-4 bg-blue-50 rounded-xl">
+                  <span className="text-[11px] font-medium text-blue-700 block">As of Date</span>
+                  <span className="text-lg font-bold text-blue-950 mt-1 block">
+                    {summary?.as_of ?? new Date().toISOString().slice(0, 10)}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Plan Breakdown Card */}
+        {/* Quick Links Card */}
         <motion.div variants={fadeInUp}>
           <Card className="h-full flex flex-col justify-between">
             <CardHeader>
               <div>
-                <CardTitle>Plan Distribution</CardTitle>
-                <CardDescription>Active subscriptions by frequency</CardDescription>
+                <CardTitle>Quick Navigation</CardTitle>
+                <CardDescription>Direct module management shortcuts</CardDescription>
               </div>
-              <Badge variant="neutral">Pending</Badge>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col items-center justify-center py-12">
-              <div className="flex flex-col items-center justify-center text-center max-w-xs">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <h4 className="text-sm font-semibold text-slate-800">No Active Plans</h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  Distribution charts will automatically populate as plans and subscriptions are confirmed.
-                </p>
-              </div>
+            <CardContent className="space-y-2 py-4">
+              <Button
+                variant="outline"
+                className="w-full justify-start text-xs"
+                onClick={() => navigate('/subscriptions')}
+                leftIcon={<Repeat className="w-4 h-4 text-blue-600" />}
+              >
+                Manage Subscriptions ({summary?.active_subscriptions ?? activeSubsCount})
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-xs"
+                onClick={() => navigate('/invoices')}
+                leftIcon={<DollarSign className="w-4 h-4 text-emerald-600" />}
+              >
+                Inspect Invoices & Run AI Explainer
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-xs"
+                onClick={() => navigate('/payments')}
+                leftIcon={<Clock className="w-4 h-4 text-purple-600" />}
+              >
+                View Payment Ledger
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
-      {/* Recent Invoices Section - Honest Empty State */}
+      {/* Recent Invoices Section */}
       <motion.div variants={fadeInUp}>
         <Card>
           <CardHeader>
-            <div>
-              <CardTitle>Recent Invoices & Lifecycle Status</CardTitle>
-              <CardDescription>
-                Auditable billing events generated from subscriptions (Draft → Confirmed → Paid).
-              </CardDescription>
+            <div className="flex items-center justify-between w-full">
+              <div>
+                <CardTitle>Recent Invoices & Lifecycle Status</CardTitle>
+                <CardDescription>
+                  Auditable billing events generated from subscriptions (Draft → Confirmed → Paid).
+                </CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => navigate('/invoices')}>
+                View All Invoices
+              </Button>
             </div>
           </CardHeader>
-          <div className="py-6">
-            <EmptyState
-              title="No Invoices Generated Yet"
-              description="Invoices will be automatically created on billing day from active subscriptions via the backend billing engine."
-              actionLabel="View Subscriptions"
-              onAction={() => {}}
-            />
-          </div>
+          <CardContent className="p-0">
+            {recentInvoices.length === 0 ? (
+              <div className="py-8">
+                <EmptyState
+                  title="No Invoices Generated Yet"
+                  description="Click 'Run Due Billing' above or confirm an active subscription to generate invoices."
+                />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Billing Period</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentInvoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-semibold text-slate-900">
+                        {inv.invoice_number || `INV-${inv.id.slice(0, 8).toUpperCase()}`}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        {inv.billing_period_start} → {inv.billing_period_end_exclusive}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-600">{inv.due_date}</TableCell>
+                      <TableCell className="font-bold text-slate-900">₹{inv.total}</TableCell>
+                      <TableCell>
+                        <Badge variant={inv.status === 'paid' ? 'success' : inv.status === 'confirmed' ? 'default' : 'neutral'}>
+                          {inv.status.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
         </Card>
       </motion.div>
     </motion.div>

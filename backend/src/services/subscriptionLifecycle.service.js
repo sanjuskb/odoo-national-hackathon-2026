@@ -166,4 +166,3 @@ module.exports = {
   getAllowedActions,
   evaluateTransition,
 };
-

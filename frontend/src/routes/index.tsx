@@ -10,17 +10,14 @@ import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { ProductsPage } from '@/pages/products/ProductsPage';
 import { PlansPage } from '@/pages/plans/PlansPage';
+import { SubscriptionsPage } from '@/pages/subscriptions/SubscriptionsPage';
+import { InvoicesPage } from '@/pages/invoices/InvoicesPage';
+import { PaymentsPage } from '@/pages/payments/PaymentsPage';
 import { CustomerPortalPage } from '@/pages/portal/CustomerPortalPage';
-import { GenericPlaceholderPage } from '@/pages/common/GenericPlaceholderPage';
+import { CustomersPage } from '@/pages/customers/CustomersPage';
+import { QuotationTemplatesPage } from '@/pages/quotations/QuotationTemplatesPage';
+import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { AIAssistantWidget } from '@/components/assistant/AIAssistantWidget';
-import {
-  FileText,
-  Repeat,
-  Receipt,
-  CreditCard,
-  Users,
-  Settings,
-} from 'lucide-react';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -87,12 +84,7 @@ export const AppRoutes: React.FC = () => {
             path="/quotations"
             element={
               <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <GenericPlaceholderPage
-                  title="Quotation Templates"
-                  description="Standardized quotation blueprints prepopulating plans and lines with custom validity days."
-                  icon={<FileText className="w-6 h-6" />}
-                  entityName="Quotation Template"
-                />
+                <QuotationTemplatesPage />
               </ProtectedRoute>
             }
           />
@@ -102,12 +94,7 @@ export const AppRoutes: React.FC = () => {
             path="/subscriptions"
             element={
               <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <GenericPlaceholderPage
-                  title="Subscriptions"
-                  description="Track end-to-end customer lifecycle: Draft → Quotation → Confirmed → Active → Closed."
-                  icon={<Repeat className="w-6 h-6" />}
-                  entityName="Subscription"
-                />
+                <SubscriptionsPage />
               </ProtectedRoute>
             }
           />
@@ -117,12 +104,7 @@ export const AppRoutes: React.FC = () => {
             path="/invoices"
             element={
               <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <GenericPlaceholderPage
-                  title="Invoices & Scheduled Billing"
-                  description="Automated invoice generation engine with tax rules, discounts, and idempotent billing cycles."
-                  icon={<Receipt className="w-6 h-6" />}
-                  entityName="Invoice"
-                />
+                <InvoicesPage />
               </ProtectedRoute>
             }
           />
@@ -132,12 +114,7 @@ export const AppRoutes: React.FC = () => {
             path="/payments"
             element={
               <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <GenericPlaceholderPage
-                  title="Recorded Payments"
-                  description="Record payments against verified invoices with method, amount, date, and audit notes."
-                  icon={<CreditCard className="w-6 h-6" />}
-                  entityName="Payment"
-                />
+                <PaymentsPage />
               </ProtectedRoute>
             }
           />
@@ -147,12 +124,7 @@ export const AppRoutes: React.FC = () => {
             path="/customers"
             element={
               <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <GenericPlaceholderPage
-                  title="Customer Directory"
-                  description="Directory of verified business customer accounts and billing assignments."
-                  icon={<Users className="w-6 h-6" />}
-                  entityName="Customer"
-                />
+                <CustomersPage />
               </ProtectedRoute>
             }
           />
@@ -172,12 +144,7 @@ export const AppRoutes: React.FC = () => {
             path="/settings"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <GenericPlaceholderPage
-                  title="System & Tax Configuration"
-                  description="Manage admin rules, tax jurisdictions, staff invitations, and global discount rules."
-                  icon={<Settings className="w-6 h-6" />}
-                  entityName="Setting Rule"
-                />
+                <SettingsPage />
               </ProtectedRoute>
             }
           />

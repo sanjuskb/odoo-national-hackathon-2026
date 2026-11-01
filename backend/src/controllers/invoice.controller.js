@@ -4,6 +4,7 @@ const invoicesRepo = require('../repositories/invoices.repository');
 const { canTransition } = require('../services/invoice.service');
 const { renderInvoiceHtml } = require('../services/invoiceRenderer');
 const { sendInvoiceEmail } = require('../services/email.service');
+const { explainInvoice: explainInvoiceService, synthesizeSpeech } = require('../services/aiVoice.service');
 const AppError = require('../utils/AppError');
 const { sendSuccess } = require('../utils/response');
 
@@ -127,6 +128,26 @@ async function printInvoice(req, res, next) {
   }
 }
 
+async function explainInvoice(req, res, next) {
+  try {
+    const explanation = await explainInvoiceService(req.params.id, req.user);
+    return sendSuccess(res, explanation, 'Invoice explanation generated successfully');
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function speakInvoice(req, res, next) {
+  try {
+    const explanation = await explainInvoiceService(req.params.id, req.user);
+    const voiceId = req.body?.voice_id;
+    const speech = await synthesizeSpeech(explanation.explanation_narrative, voiceId);
+    return sendSuccess(res, { explanation, speech }, 'Invoice voice synthesis generated successfully');
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listInvoices,
   getInvoice,
@@ -134,5 +155,7 @@ module.exports = {
   cancelInvoice,
   sendInvoice,
   printInvoice,
+  explainInvoice,
+  speakInvoice,
 };
 

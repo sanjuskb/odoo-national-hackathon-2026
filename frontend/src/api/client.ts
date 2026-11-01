@@ -8,7 +8,7 @@ import { ApiResponse } from '@/types';
  * - Zero client-side financial calculations
  * - Zero silent mock fallbacks
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
 class ApiClient {
   private baseUrl: string;
@@ -95,9 +95,17 @@ class ApiClient {
     });
   }
 
+  public patch<T>(endpoint: string, body?: unknown) {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   public delete<T>(endpoint: string) {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
 }
 
 export const api = new ApiClient(API_BASE_URL);
+export const apiClient = api;

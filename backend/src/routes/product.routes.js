@@ -24,10 +24,12 @@ router.get('/:id', authenticate, productController.getProduct);
 router.post('/', authenticate, requireRole('admin'), validate(createProductSchema), productController.createProduct);
 
 router.patch('/:id', authenticate, requireRole('admin'), validate(updateProductSchema), productController.updateProduct);
+router.put('/:id', authenticate, requireRole('admin'), validate(updateProductSchema), productController.updateProduct);
 
 // Variants
 router.post('/:id/variants', authenticate, requireRole('admin'), validate(createVariantSchema), productController.createVariant);
 
 router.patch('/:id/variants/:variantId', authenticate, requireRole('admin'), validate(updateVariantSchema), productController.updateVariant);
+router.put('/:id/variants/:variantId', authenticate, requireRole('admin'), validate(updateVariantSchema), productController.updateVariant);
 
 module.exports = router;

@@ -238,4 +238,3 @@ module.exports = {
   findAutoCloseCandidates,
   mapSubscriptionFromDb,
 };
-

@@ -11,6 +11,8 @@ jspm_packages/
 .env.test.local
 .env.production.local
 .env.*.local
+**/.env
+**/.env.*
 *.pem
 *.key
 *.cert
@@ -24,6 +26,7 @@ client_secret*.json
 
 # Allow example environment file
 !.env.example
+!**/.env.example
 
 # Python
 __pycache__/

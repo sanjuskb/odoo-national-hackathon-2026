@@ -55,8 +55,6 @@ async function createLines(subscriptionId, lines = [], client = getSupabaseAdmin
     variant_id: l.variant_id || null,
     quantity: parseInt(l.quantity, 10),
     unit_price: formatMoney(parseMoney(l.unit_price)),
-    tax_id: l.tax_id || null,
-    amount: formatMoney(parseMoney(l.amount)),
     description: l.description || null,
     variant_adjustment: l.variant_adjustment ? formatMoney(parseMoney(l.variant_adjustment)) : '0.00',
     tax_rate_percent: l.tax_rate_percent ? formatMoney(parseMoney(l.tax_rate_percent)) : '0.00',

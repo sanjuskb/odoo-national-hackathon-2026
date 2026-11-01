@@ -19,5 +19,6 @@ router.get('/:id', authenticate, planController.getPlan);
 router.post('/', authenticate, requireRole('admin'), validate(createPlanSchema), planController.createPlan);
 
 router.patch('/:id', authenticate, requireRole('admin'), validate(updatePlanSchema), planController.updatePlan);
+router.put('/:id', authenticate, requireRole('admin'), validate(updatePlanSchema), planController.updatePlan);
 
 module.exports = router;

@@ -7,7 +7,7 @@ const { sendSuccess } = require('../utils/response');
 
 async function recordPayment(req, res, next) {
   try {
-    const invoiceId = req.params.id;
+    const invoiceId = req.params.id || req.body.invoice_id;
     const { amount, payment_date, method, reference, note } = req.body;
 
     const result = await paymentsRepo.recordPayment({
